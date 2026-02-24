@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>User Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="/public/styles.css" rel="stylesheet" />
+</head>
+<body class="hs-body">
+  <div class="container py-4">
+    <div class="row g-3 align-items-stretch mb-4">
+      <div class="col-12 col-lg-8">
+        <div class="panel h-100 d-flex flex-column justify-content-center">
+          <h1 class="mb-2"><i class="fa-solid fa-users me-2"></i>User Management</h1>
+          <p class="text-muted mb-0">Create, enable/disable, and remove users.</p>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="panel h-100">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-muted">Signed in as</span>
+            <span class="role-badge"><%= user.role %></span>
+          </div>
+          <div class="fw-semibold mb-3"><i class="fa-solid fa-user me-2"></i><%= user.username %></div>
+          <a href="/" class="btn btn-hs-secondary w-100">
+            <i class="fa-solid fa-arrow-left me-2"></i>Back to Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <% if (notice) { %>
+      <div class="alert alert-success" role="alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="alert alert-danger" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
+    <% } %>
+
+    <div class="row g-3">
+      <div class="col-12 col-xl-4">
+        <div class="panel">
+          <h2 class="h5 mb-3"><i class="fa-solid fa-user-plus me-2"></i>Add User</h2>
+          <form action="/users" method="post">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input id="username" name="username" type="text" class="form-control hs-input" required minlength="3" maxlength="50" pattern="[a-zA-Z0-9_.-]{3,50}" />
+            </div>
+
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input id="password" name="password" type="password" class="form-control hs-input" required minlength="8" maxlength="128" />
+            </div>
+
+            <div class="mb-3">
+              <label for="role" class="form-label">Role</label>
+              <select id="role" name="role" class="form-select hs-input" required>
+                <% roles.forEach((roleName) => { %>
+                  <option value="<%= roleName %>"><%= roleName %></option>
+                <% }) %>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-hs-primary w-100">
+              <i class="fa-solid fa-plus me-2"></i>Create User
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-8">
+        <div class="panel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0"><i class="fa-solid fa-address-card me-2"></i>Users</h2>
+            <span class="text-muted"><%= users.length %> total</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hs align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (!users.length) { %>
+                  <tr>
+                    <td colspan="4" class="text-center text-muted py-4">No users found.</td>
+                  </tr>
+                <% } %>
+                <% users.forEach((managedUser) => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><%= managedUser.username %></div>
+                      <small class="text-muted"><%= managedUser.id.slice(0, 8) %></small>
+                    </td>
+                    <td>
+                      <span class="role-badge"><%= managedUser.role %></span>
+                    </td>
+                    <td>
+                      <% if (managedUser.active) { %>
+                        <span class="status-pill">Enabled</span>
+                      <% } else { %>
+                        <span class="status-pill status-pill-inactive">Disabled</span>
+                      <% } %>
+                    </td>
+                    <td class="text-end">
+                      <% if (managedUser.active) { %>
+                        <% if (managedUser.canDisable) { %>
+                          <form
+                            action="/users/<%= encodeURIComponent(managedUser.id) %>/disable"
+                            method="post"
+                            class="d-inline"
+                            onsubmit="return confirm('Disable this user account?');"
+                          >
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                            <button type="submit" class="btn btn-sm btn-hs-secondary">
+                              <i class="fa-solid fa-user-slash me-1"></i>Disable
+                            </button>
+                          </form>
+                        <% } %>
+                      <% } else { %>
+                        <% if (managedUser.canEnable) { %>
+                          <form
+                            action="/users/<%= encodeURIComponent(managedUser.id) %>/enable"
+                            method="post"
+                            class="d-inline"
+                            onsubmit="return confirm('Enable this user account?');"
+                          >
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                            <button type="submit" class="btn btn-sm btn-hs-primary">
+                              <i class="fa-solid fa-user-check me-1"></i>Enable
+                            </button>
+                          </form>
+                        <% } %>
+                      <% } %>
+
+                      <% if (managedUser.canDelete) { %>
+                        <form
+                          action="/users/<%= encodeURIComponent(managedUser.id) %>/delete"
+                          method="post"
+                          class="d-inline ms-1"
+                          onsubmit="return confirm('Remove this user account? This cannot be undone.');"
+                        >
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <button type="submit" class="btn btn-sm btn-hs-danger">
+                            <i class="fa-solid fa-trash me-1"></i>Remove
+                          </button>
+                        </form>
+                      <% } %>
+
+                      <% if (managedUser.isOriginalAdmin) { %>
+                        <span class="badge text-bg-warning ms-1">Protected account</span>
+                      <% } %>
+                    </td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

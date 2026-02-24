@@ -1,0 +1,111 @@
+.hs-body {
+  font-family: "Roboto", system-ui, -apple-system, sans-serif;
+  background: #090f14;
+  color: #e8f2ff;
+}
+
+.panel {
+  background: #101923;
+  border: 1px solid #1b2a3b;
+  border-radius: 12px;
+  padding: 1.25rem;
+}
+
+.role-badge {
+  background: #072e2c;
+  color: #23f0c7;
+  border: 1px solid #1cb89b;
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.table-hs {
+  --bs-table-bg: transparent;
+  --bs-table-color: #dce9f8;
+  --bs-table-border-color: #1e2c3d;
+  --bs-table-striped-bg: rgba(31, 47, 65, 0.4);
+}
+
+.status-pill {
+  display: inline-block;
+  background: #052f2f;
+  color: #2cf2df;
+  border: 1px solid #1a9f96;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+}
+
+.status-pill-inactive {
+  background: #3a1f1f;
+  color: #ffb0b0;
+  border-color: #b35d5d;
+}
+
+.btn-hs-primary {
+  background: #00c9d2;
+  color: #031318;
+  border: none;
+  font-weight: 700;
+}
+
+.btn-hs-primary:hover,
+.btn-hs-primary:focus {
+  background: #00d8e1;
+  color: #031318;
+}
+
+.btn-hs-secondary {
+  background: #1a2838;
+  border: 1px solid #2f455e;
+  color: #d6e7ff;
+}
+
+.btn-hs-secondary:hover,
+.btn-hs-secondary:focus {
+  background: #24364a;
+  color: #ffffff;
+}
+
+.btn-hs-danger {
+  background: #ff4d4d;
+  border: none;
+  color: #fff;
+  font-weight: 700;
+}
+
+.btn-hs-danger:hover,
+.btn-hs-danger:focus {
+  background: #ff6161;
+  color: #fff;
+}
+
+.btn-hs-disabled {
+  background: #2b3644;
+  border: 1px solid #3e4e61;
+  color: #9eb1c6;
+}
+
+.danger-zone {
+  border-color: #553131;
+}
+
+.hs-input {
+  background: #0d1722;
+  border: 1px solid #274059;
+  color: #eaf2fc;
+}
+
+.hs-input:focus {
+  background: #0d1722;
+  border-color: #00c9d2;
+  color: #eaf2fc;
+  box-shadow: none;
+}
+
+.text-muted {
+  color: #9ab0c7 !important;
+}

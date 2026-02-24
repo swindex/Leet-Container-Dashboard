@@ -1,0 +1,17 @@
+services:
+  panel:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - USERS_FILE=/app/data/users.json
+      - COOKIE_NAME=hsp_session
+      - COOKIE_SECRET=change-this-to-a-long-random-string
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/app
+    restart: unless-stopped

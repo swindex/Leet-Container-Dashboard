@@ -1,0 +1,2 @@
+- This is windows dev environment so use windows ; separator when running multiple command line commands in one call
+- prefer to use `bun run dev` when starting the server.

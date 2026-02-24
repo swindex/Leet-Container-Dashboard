@@ -1,0 +1,32 @@
+{
+  "name": "home-server-panel",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "kill-port 3000 && bun run src/index.ts",
+    "dev": "kill-port 3000 && bun --watch src/index.ts",
+    "init-admin": "bun run -e \"import('./src/lib/auth.js').then(m=>m.initAdminFromEnv()).then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1);})\"",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.7",
+    "@types/ejs": "^3.1.5",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.11.19",
+    "@types/supertest": "^6.0.3",
+    "kill-port": "^2.0.1",
+    "supertest": "^7.1.1",
+    "typescript": "^5.3.3",
+    "vitest": "^2.1.8"
+  }
+}
