@@ -20,12 +20,16 @@ import {
   deleteManagedUser,
 } from "./lib/auth.js";
 import {
+  getDockerHostInfo,
+  listContainerStats,
   listRunningContainers,
   removeContainer,
   startContainer,
   stopContainer,
   restartContainer,
   type DockerContainer,
+  type DockerContainerStat,
+  type DockerHostInfo,
   type DockerTargetServer,
 } from "./lib/dockerCli.js";
 import { PERMISSIONS, ROLES, type Role } from "./lib/rbac.js";
@@ -45,6 +49,8 @@ const __dirname = path.dirname(__filename);
 
 type AppDeps = {
   listContainers: (server?: DockerTargetServer) => Promise<DockerContainer[]>;
+  listContainerStats: (server?: DockerTargetServer) => Promise<DockerContainerStat[]>;
+  getHostInfo: (server?: DockerTargetServer) => Promise<DockerHostInfo>;
   removeContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   startContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   stopContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
@@ -70,6 +76,20 @@ type ServiceLink = {
 
 type DashboardContainer = DockerContainer & {
   serviceLinks: ServiceLink[];
+  resourceCpu: string;
+  resourceMemory: string;
+  resourceNetIo: string;
+  resourceBlockIo: string;
+};
+
+type DashboardServerMetrics = {
+  cpuCores: string;
+  totalMemory: string;
+  usedMemory: string;
+  memoryUtilization: string;
+  monitoredContainers: number;
+  available: boolean;
+  warning: string;
 };
 
 type ResolvedComposeGroup = {
@@ -80,12 +100,166 @@ type ResolvedComposeGroup = {
 
 const defaultDeps: AppDeps = {
   listContainers: listRunningContainers,
+  listContainerStats,
+  getHostInfo: getDockerHostInfo,
   removeContainerById: removeContainer,
   startContainerById: startContainer,
   stopContainerById: stopContainer,
   restartContainerById: restartContainer,
   restartHostMachine: restartHost,
 };
+
+function normalizeContainerIdentifier(identifier: string): string {
+  return (identifier || "").trim().toLowerCase();
+}
+
+function parseHumanSizeToBytes(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const match = trimmed.match(/^(?<amount>\d+(?:\.\d+)?)\s*(?<unit>[kmgtp]?i?b)$/i);
+  if (!match?.groups) {
+    return null;
+  }
+
+  const amount = Number.parseFloat(match.groups.amount);
+  if (!Number.isFinite(amount)) {
+    return null;
+  }
+
+  const unit = match.groups.unit.toUpperCase();
+  const multipliers: Record<string, number> = {
+    B: 1,
+    KB: 1_000,
+    MB: 1_000 ** 2,
+    GB: 1_000 ** 3,
+    TB: 1_000 ** 4,
+    PB: 1_000 ** 5,
+    KIB: 1_024,
+    MIB: 1_024 ** 2,
+    GIB: 1_024 ** 3,
+    TIB: 1_024 ** 4,
+    PIB: 1_024 ** 5,
+  };
+
+  const multiplier = multipliers[unit];
+  if (!multiplier) {
+    return null;
+  }
+
+  return amount * multiplier;
+}
+
+function parseUsedMemoryFromMemUsage(memUsage: string): number | null {
+  const usedSegment = (memUsage || "").split("/")[0]?.trim() || "";
+  return parseHumanSizeToBytes(usedSegment);
+}
+
+function formatBytes(value: number): string {
+  if (!Number.isFinite(value) || value < 0) {
+    return "-";
+  }
+
+  if (value < 1024) {
+    return `${Math.round(value)} B`;
+  }
+
+  const units = ["KiB", "MiB", "GiB", "TiB", "PiB"];
+  let unitIndex = -1;
+  let normalized = value;
+
+  do {
+    normalized /= 1024;
+    unitIndex += 1;
+  } while (normalized >= 1024 && unitIndex < units.length - 1);
+
+  return `${normalized.toFixed(normalized >= 100 ? 0 : normalized >= 10 ? 1 : 2)} ${units[unitIndex]}`;
+}
+
+function buildContainerStatsLookup(stats: DockerContainerStat[]): Map<string, DockerContainerStat> {
+  const lookup = new Map<string, DockerContainerStat>();
+
+  for (const stat of stats) {
+    const candidates = [
+      stat.Name,
+      stat.Container,
+      stat.ID,
+      (stat.ID || "").slice(0, 12),
+    ];
+
+    for (const candidate of candidates) {
+      const normalized = normalizeContainerIdentifier(candidate);
+      if (normalized) {
+        lookup.set(normalized, stat);
+      }
+    }
+  }
+
+  return lookup;
+}
+
+function resolveContainerStat(container: DockerContainer, statsLookup: Map<string, DockerContainerStat>): DockerContainerStat | null {
+  const candidates = [
+    container.Names,
+    container.ID,
+    (container.ID || "").slice(0, 12),
+  ];
+
+  for (const candidate of candidates) {
+    const normalized = normalizeContainerIdentifier(candidate);
+    if (!normalized) {
+      continue;
+    }
+
+    const stat = statsLookup.get(normalized);
+    if (stat) {
+      return stat;
+    }
+  }
+
+  return null;
+}
+
+function createUnavailableServerMetrics(warning: string): DashboardServerMetrics {
+  return {
+    cpuCores: "-",
+    totalMemory: "-",
+    usedMemory: "-",
+    memoryUtilization: "-",
+    monitoredContainers: 0,
+    available: false,
+    warning,
+  };
+}
+
+function buildServerMetrics(hostInfo: DockerHostInfo | null, stats: DockerContainerStat[], warning: string): DashboardServerMetrics {
+  if (!hostInfo && !stats.length) {
+    return createUnavailableServerMetrics(warning);
+  }
+
+  const totalMemoryBytes = Number.isFinite(hostInfo?.MemTotal) ? Number(hostInfo?.MemTotal) : null;
+  const usedMemoryBytes = stats.reduce((sum, stat) => {
+    const used = parseUsedMemoryFromMemUsage(stat.MemUsage || "");
+    return sum + (used ?? 0);
+  }, 0);
+
+  const monitoredContainers = stats.length;
+  const memoryUtilization = totalMemoryBytes && totalMemoryBytes > 0
+    ? `${((usedMemoryBytes / totalMemoryBytes) * 100).toFixed(1)}%`
+    : "-";
+
+  return {
+    cpuCores: Number.isFinite(hostInfo?.NCPU) ? String(hostInfo?.NCPU) : "-",
+    totalMemory: totalMemoryBytes ? formatBytes(totalMemoryBytes) : "-",
+    usedMemory: monitoredContainers ? formatBytes(usedMemoryBytes) : "-",
+    memoryUtilization,
+    monitoredContainers,
+    available: monitoredContainers > 0 || Boolean(totalMemoryBytes) || Number.isFinite(hostInfo?.NCPU),
+    warning,
+  };
+}
 
 function toBooleanFormValue(value: unknown): boolean {
   return value === "true" || value === "on" || value === "1";
@@ -265,7 +439,8 @@ function inferServiceLinksFromPorts(portsValue: string, serviceHost: string): Se
 
 function groupContainersByComposeFile(
   containers: DockerContainer[],
-  serviceHost: string
+  serviceHost: string,
+  statsLookup: Map<string, DockerContainerStat>
 ): DashboardContainerGroup[] {
   const grouped = new Map<string, DashboardContainerGroup>();
 
@@ -273,7 +448,19 @@ function groupContainersByComposeFile(
     const dashboardContainer = {
       ...container,
       serviceLinks: inferServiceLinksFromPorts(container.Ports || "", serviceHost),
+      resourceCpu: "-",
+      resourceMemory: "-",
+      resourceNetIo: "-",
+      resourceBlockIo: "-",
     } as unknown as DashboardContainer;
+
+    const stat = resolveContainerStat(container, statsLookup);
+    if (stat) {
+      dashboardContainer.resourceCpu = stat.CPUPerc || "-";
+      dashboardContainer.resourceMemory = stat.MemUsage || "-";
+      dashboardContainer.resourceNetIo = stat.NetIO || "-";
+      dashboardContainer.resourceBlockIo = stat.BlockIO || "-";
+    }
 
     const group = resolveComposeGroup(container);
     const existing = grouped.get(group.key);
@@ -347,7 +534,20 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       setActiveServerSession(res, req, activeServer.id);
 
       const containers = await deps.listContainers(activeServer);
-      const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer));
+      const [statsResult, hostInfoResult] = await Promise.allSettled([
+        deps.listContainerStats(activeServer),
+        deps.getHostInfo(activeServer),
+      ]);
+
+      const metricsWarning = (statsResult.status === "rejected" || hostInfoResult.status === "rejected")
+        ? "Resource metrics are temporarily unavailable for this server."
+        : "";
+
+      const containerStats = statsResult.status === "fulfilled" ? statsResult.value : [];
+      const hostInfo = hostInfoResult.status === "fulfilled" ? hostInfoResult.value : null;
+      const statsLookup = buildContainerStatsLookup(containerStats);
+      const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer), statsLookup);
+      const serverMetrics = buildServerMetrics(hostInfo, containerStats, metricsWarning);
       const can = getPermissionFlags(req.user);
       const { notice, error } = consumeFlashSession(res, req);
 
@@ -356,6 +556,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         can,
         containers,
         groupedContainers,
+        serverMetrics,
+        metricsWarning,
         csrfToken: req.csrfToken,
         notice,
         error,
@@ -370,6 +572,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         can: getPermissionFlags(req.user),
         containers: [],
         groupedContainers: [],
+        serverMetrics: createUnavailableServerMetrics(""),
+        metricsWarning: "",
         csrfToken: req.csrfToken,
         notice: "",
         error: `Dashboard error: ${error.message}`,

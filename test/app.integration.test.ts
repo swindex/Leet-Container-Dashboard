@@ -53,6 +53,8 @@ describe("home server dashboard integration", () => {
   const removeContainerMock = vi.fn(async (_containerId: string) => undefined);
   const startContainerMock = vi.fn(async (_containerId: string) => undefined);
   const stopContainerMock = vi.fn(async (_containerId: string) => undefined);
+  const listContainerStatsMock = vi.fn(async () => []);
+  const getHostInfoMock = vi.fn(async () => ({ NCPU: 8, MemTotal: 16 * 1024 * 1024 * 1024 }));
   const restartHostMock = vi.fn(async () => undefined);
 
   beforeAll(async () => {
@@ -117,6 +119,8 @@ describe("home server dashboard integration", () => {
     removeContainerMock.mockClear();
     startContainerMock.mockClear();
     stopContainerMock.mockClear();
+    listContainerStatsMock.mockClear();
+    getHostInfoMock.mockClear();
     restartHostMock.mockClear();
   });
 
@@ -504,6 +508,8 @@ describe("home server dashboard integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
       restartHostMachine: restartHostMock,
     });
 
@@ -513,6 +519,109 @@ describe("home server dashboard integration", () => {
     expect(dashboardRes.text).toContain("uptime-check");
     expect(dashboardRes.text).toContain("8 seconds");
     expect(dashboardRes.text).not.toContain(">2 hours<");
+  });
+
+  it("renders server and container resource metrics when docker stats are available", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "res111222333",
+          Names: "metrics-api",
+          Image: "repo/metrics-api:latest",
+          Status: "Up 3 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      listContainerStats: async () => [
+        {
+          BlockIO: "1.2MB / 512kB",
+          CPUPerc: "2.35%",
+          Container: "res111222333",
+          ID: "res111222333",
+          MemPerc: "4.2%",
+          MemUsage: "128MiB / 2GiB",
+          Name: "metrics-api",
+          NetIO: "4.5MB / 2.1MB",
+          PIDs: "15",
+        },
+      ],
+      getHostInfo: async () => ({
+        NCPU: 12,
+        MemTotal: 8 * 1024 * 1024 * 1024,
+      }),
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    expect(dashboardRes.text).toContain("Resource Consumption");
+    expect(dashboardRes.text).toContain("CPU Cores");
+    expect(dashboardRes.text).toContain(">12<");
+    expect(dashboardRes.text).toContain("Total Memory");
+    expect(dashboardRes.text).toContain("8.00 GiB");
+    expect(dashboardRes.text).toContain("metrics-api");
+    expect(dashboardRes.text).toContain("2.35%");
+    expect(dashboardRes.text).toContain("128MiB / 2GiB");
+    expect(dashboardRes.text).toContain("4.5MB / 2.1MB");
+    expect(dashboardRes.text).toContain("1.2MB / 512kB");
+  });
+
+  it("shows metrics warning when docker stats collection fails", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "warn111",
+          Names: "warn-api",
+          Image: "repo/warn-api:latest",
+          Status: "Up 1 minute",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      listContainerStats: async () => {
+        throw new Error("stats unavailable");
+      },
+      getHostInfo: async () => ({
+        NCPU: 4,
+        MemTotal: 4 * 1024 * 1024 * 1024,
+      }),
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    expect(dashboardRes.text).toContain("Resource metrics are temporarily unavailable for this server.");
+    expect(dashboardRes.text).toContain("warn-api");
+    expect(dashboardRes.text).toContain("<th class=\"resource-desktop-col\">Resources</th>");
+    expect(dashboardRes.text).toContain("<strong>CPU</strong> -");
+    expect(dashboardRes.text).toContain("<strong>Memory</strong> -");
+    expect(dashboardRes.text).toContain("<strong>Net</strong> -");
+    expect(dashboardRes.text).toContain("<strong>Disk</strong> -");
   });
 
   it("shows stopped status label for exited containers instead of exit code", async () => {

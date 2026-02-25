@@ -31,6 +31,25 @@ export interface DockerContainer {
   [key: string]: string;
 }
 
+export interface DockerContainerStat {
+  BlockIO: string;
+  CPUPerc: string;
+  Container: string;
+  ID: string;
+  MemPerc: string;
+  MemUsage: string;
+  Name: string;
+  NetIO: string;
+  PIDs: string;
+  [key: string]: string;
+}
+
+export interface DockerHostInfo {
+  NCPU?: number;
+  MemTotal?: number;
+  [key: string]: unknown;
+}
+
 async function execDocker(args: string[], server?: DockerTargetServer): Promise<string> {
   const useRemote = Boolean(server && !server.isLocal);
 
@@ -129,6 +148,19 @@ export async function listRunningContainers(server?: DockerTargetServer): Promis
     .map((line) => JSON.parse(line) as DockerContainer);
 }
 
+export async function listContainerStats(server?: DockerTargetServer): Promise<DockerContainerStat[]> {
+  const out = await execDocker(["stats", "--no-stream", "--format", "{{json .}}"], server);
+  return out
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as DockerContainerStat);
+}
+
+export async function getDockerHostInfo(server?: DockerTargetServer): Promise<DockerHostInfo> {
+  const out = await execDocker(["info", "--format", "{{json .}}"], server);
+  return JSON.parse(out) as DockerHostInfo;
+}
+
 export async function restartContainer(containerIdOrName: string, server?: DockerTargetServer): Promise<void> {
   if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
     throw new Error("Invalid container identifier.");
@@ -156,6 +188,7 @@ export async function removeContainer(containerIdOrName: string, server?: Docker
   }
   await execDocker(["rm", containerIdOrName], server);
 }
+
 
 
 
