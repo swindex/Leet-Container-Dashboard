@@ -156,6 +156,45 @@
   box-shadow: none;
 }
 
+.hs-input:disabled,
+.hs-input[readonly],
+.modal .form-control:disabled,
+.modal .form-control[readonly] {
+  background: #0d1722;
+  border-color: #274059;
+  color: #9ab0c7;
+  opacity: 1;
+}
+
+.modal-content {
+  background: #101923;
+  border: 1px solid #1b2a3b;
+  color: #e8f2ff;
+}
+
+.modal-header,
+.modal-footer {
+  border-color: #1e2c3d;
+}
+
+.modal-title {
+  color: #e8f2ff;
+}
+
+.modal .btn-close {
+  filter: invert(1) grayscale(100%) brightness(200%);
+  opacity: 0.75;
+}
+
+.modal .btn-close:hover,
+.modal .btn-close:focus {
+  opacity: 1;
+}
+
+.modal-backdrop.show {
+  opacity: 0.7;
+}
+
 .text-muted {
   color: #9ab0c7 !important;
 }

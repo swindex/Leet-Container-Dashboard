@@ -521,6 +521,55 @@ export async function deleteManagedUser(input: { userId: string; actorUserId: st
   await writeUsersFile(usersFile);
 }
 
+export async function updateManagedUser(input: {
+  userId: string;
+  actorUserId: string;
+  role: Role;
+  password?: string;
+}): Promise<void> {
+  if (!Object.values(ROLES).includes(input.role)) {
+    throw new Error("Invalid role");
+  }
+
+  if (
+    typeof input.password === "string" &&
+    input.password.length > 0 &&
+    (input.password.length < MIN_PASSWORD_LENGTH || input.password.length > MAX_PASSWORD_LENGTH)
+  ) {
+    throw new Error("Password must be between 8 and 128 characters");
+  }
+
+  const usersFile = await readUsersFile();
+  const target = usersFile.users.find((user) => user.id === input.userId);
+  const originalAdmin = getOriginalAdminUser(usersFile.users);
+  if (!target) {
+    throw new Error("User not found");
+  }
+
+  if (target.id === input.actorUserId) {
+    throw new Error("You cannot edit your own account");
+  }
+
+  if (originalAdmin?.id === target.id) {
+    throw new Error("Cannot edit the original admin");
+  }
+
+  if (target.role === ROLES.ADMIN && input.role !== ROLES.ADMIN && target.active) {
+    const activeAdminCount = usersFile.users.filter((user) => user.role === ROLES.ADMIN && user.active).length;
+    if (activeAdminCount <= 1) {
+      throw new Error("Cannot remove the last active admin role");
+    }
+  }
+
+  target.role = input.role;
+  if (typeof input.password === "string" && input.password.length > 0) {
+    target.passwordHash = await bcrypt.hash(input.password, 12);
+  }
+  target.updatedAt = new Date().toISOString();
+
+  await writeUsersFile(usersFile);
+}
+
 export async function initAdminFromEnv(): Promise<void> {
   const username = process.env.ADMIN_USERNAME?.trim();
   const password = process.env.ADMIN_PASSWORD;

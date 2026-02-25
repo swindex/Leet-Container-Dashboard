@@ -16,6 +16,7 @@ import {
   setActiveServerSession,
   setFlashSession,
   setManagedUserActiveStatus,
+  updateManagedUser,
   deleteManagedUser,
 } from "./lib/auth.js";
 import {
@@ -346,6 +347,35 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         res.redirect("/users");
       } catch (error) {
         setFlashSession(res, req, { error: (error as Error).message || "Failed to enable user" });
+        res.redirect("/users");
+      }
+    }
+  );
+
+  app.post(
+    "/users/:userId/update",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.USERS_MANAGE),
+    async (req, res) => {
+      try {
+        const roleInput = typeof req.body?.role === "string" ? req.body.role : "";
+        const password = typeof req.body?.password === "string" ? req.body.password : "";
+
+        const validRoles = Object.values(ROLES) as Role[];
+        const role = validRoles.includes(roleInput as Role) ? (roleInput as Role) : ROLES.VIEWER;
+
+        await updateManagedUser({
+          userId: req.params.userId,
+          actorUserId: req.user!.id,
+          role,
+          password,
+        });
+
+        setFlashSession(res, req, { notice: "User updated successfully" });
+        res.redirect("/users");
+      } catch (error) {
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to update user" });
         res.redirect("/users");
       }
     }
