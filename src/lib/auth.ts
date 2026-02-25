@@ -83,9 +83,6 @@ const MIN_PASSWORD_LENGTH = 8;
 const MAX_PASSWORD_LENGTH = 128;
 
 function getUsersFilePath(): string {
-  if (process.env.USERS_FILE) {
-    return process.env.USERS_FILE;
-  }
   return process.env.NODE_ENV === "test" ? DEFAULT_TEST_USERS_PATH : DEFAULT_USERS_PATH;
 }
 

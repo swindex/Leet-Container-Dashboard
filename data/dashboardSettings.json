@@ -3,6 +3,8 @@
   "appSlogan": "Monitor and control containers on your network.",
   "theme": "dark",
   "backgroundImagePath": "/uploads/backgrounds/rainy-city-ai.png",
-  "showContainerResources": false,
-  "showServerResources": false
+  "showContainerResources": true,
+  "showServerResources": true,
+  "showImageName": true,
+  "showContainerHash": true
 }

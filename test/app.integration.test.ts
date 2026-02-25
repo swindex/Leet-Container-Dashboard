@@ -48,7 +48,8 @@ describe("home server dashboard integration", () => {
   let usersFilePath = "";
   let dashboardSettingsFilePath = "";
   let dashboardUploadsDir = "";
-  let restoreUsersFile: string | undefined;
+  let restoreUsersFileContent: string | null = null;
+  let usersFileExisted = false;
   let restoreDashboardSettingsFile: string | undefined;
   let restoreDashboardUploadsDir: string | undefined;
   let restoreCookieSecret: string | undefined;
@@ -62,10 +63,18 @@ describe("home server dashboard integration", () => {
   const restartHostMock = vi.fn(async () => undefined);
 
   beforeAll(async () => {
-    restoreUsersFile = process.env.USERS_FILE;
     restoreDashboardSettingsFile = process.env.DASHBOARD_SETTINGS_FILE;
     restoreDashboardUploadsDir = process.env.DASHBOARD_UPLOADS_DIR;
     restoreCookieSecret = process.env.COOKIE_SECRET;
+
+    usersFilePath = path.resolve(process.cwd(), "data", "users.test.json");
+    try {
+      restoreUsersFileContent = await fs.readFile(usersFilePath, "utf-8");
+      usersFileExisted = true;
+    } catch {
+      restoreUsersFileContent = null;
+      usersFileExisted = false;
+    }
 
     const now = new Date().toISOString();
     const testUsers: TestUser[] = [
@@ -102,7 +111,6 @@ describe("home server dashboard integration", () => {
     ];
 
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "home-server-tests-"));
-    usersFilePath = path.join(tempDir, "users.json");
     dashboardSettingsFilePath = path.join(tempDir, "dashboardSettings.json");
     dashboardUploadsDir = path.join(tempDir, "uploads", "backgrounds");
 
@@ -118,7 +126,6 @@ describe("home server dashboard integration", () => {
       "utf-8"
     );
 
-    process.env.USERS_FILE = usersFilePath;
     process.env.DASHBOARD_SETTINGS_FILE = dashboardSettingsFilePath;
     process.env.DASHBOARD_UPLOADS_DIR = dashboardUploadsDir;
     process.env.COOKIE_SECRET = "integration-test-secret";
@@ -147,10 +154,10 @@ describe("home server dashboard integration", () => {
       process.env.DASHBOARD_UPLOADS_DIR = restoreDashboardUploadsDir;
     }
 
-    if (restoreUsersFile === undefined) {
-      delete process.env.USERS_FILE;
+    if (usersFileExisted) {
+      await fs.writeFile(usersFilePath, restoreUsersFileContent ?? "", "utf-8");
     } else {
-      process.env.USERS_FILE = restoreUsersFile;
+      await fs.rm(usersFilePath, { force: true });
     }
 
     if (restoreCookieSecret === undefined) {
@@ -159,8 +166,8 @@ describe("home server dashboard integration", () => {
       process.env.COOKIE_SECRET = restoreCookieSecret;
     }
 
-    if (usersFilePath) {
-      await fs.rm(path.dirname(usersFilePath), { recursive: true, force: true });
+    if (dashboardSettingsFilePath) {
+      await fs.rm(path.dirname(dashboardSettingsFilePath), { recursive: true, force: true });
     }
   });
 
