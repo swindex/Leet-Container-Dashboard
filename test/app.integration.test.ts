@@ -172,14 +172,14 @@ describe("home server dashboard integration", () => {
     const dashboardRes = await loginAndGetDashboard(agent, "viewer1", "ViewerPassword#2026");
 
     expect(dashboardRes.text).toContain("Home Server Dashboard");
-    expect(dashboardRes.text).toContain("No access");
+    expect(dashboardRes.text).toContain("Selected:");
     expect(dashboardRes.text).toContain("Admin Permission Required");
 
     const csrf = extractCsrfToken(dashboardRes.text);
     const restartRes = await agent
-      .post("/containers/nginx/restart")
+      .post("/containers/restart")
       .type("form")
-      .send({ _csrf: csrf });
+      .send({ _csrf: csrf, containers: ["nginx"] });
 
     expect(restartRes.status).toBe(403);
     expect(restartContainerMock).not.toHaveBeenCalled();
@@ -218,9 +218,9 @@ describe("home server dashboard integration", () => {
     const csrf = extractCsrfToken(dashboardRes.text);
 
     const containerRestartRes = await agent
-      .post("/containers/api/restart")
+      .post("/containers/restart")
       .type("form")
-      .send({ _csrf: csrf });
+      .send({ _csrf: csrf, containers: ["api"] });
     expect(containerRestartRes.status).toBe(302);
     expect(restartContainerMock).toHaveBeenCalledWith(
       "api",
@@ -236,6 +236,107 @@ describe("home server dashboard integration", () => {
       .send({ _csrf: csrf });
     expect(hostRestartRes.status).toBe(403);
     expect(restartHostMock).not.toHaveBeenCalled();
+  });
+
+  it("restarts multiple selected containers in one request", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "api111",
+          Names: "api",
+          Image: "repo/api:latest",
+          Status: "Up 1 hour",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+        {
+          ID: "worker111",
+          Names: "worker",
+          Image: "repo/worker:latest",
+          Status: "Up 1 hour",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "operator1", "OperatorPassword#2026");
+    const csrf = extractCsrfToken(dashboardRes.text);
+
+    const containerRestartRes = await agent
+      .post("/containers/restart")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["api", "worker"] });
+
+    expect(containerRestartRes.status).toBe(302);
+    expect(restartContainerMock).toHaveBeenCalledTimes(2);
+    expect(restartContainerMock).toHaveBeenNthCalledWith(
+      1,
+      "api",
+      expect.objectContaining({
+        id: "local",
+        isLocal: true,
+      })
+    );
+    expect(restartContainerMock).toHaveBeenNthCalledWith(
+      2,
+      "worker",
+      expect.objectContaining({
+        id: "local",
+        isLocal: true,
+      })
+    );
+  });
+
+  it("prefers status-based uptime over stale RunningFor value", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "upt111",
+          Names: "uptime-check",
+          Image: "repo/uptime-check:latest",
+          Status: "Up 8 seconds",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "2 hours",
+          Size: "",
+          State: "running",
+        },
+      ],
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    expect(dashboardRes.text).toContain("uptime-check");
+    expect(dashboardRes.text).toContain("8 seconds");
+    expect(dashboardRes.text).not.toContain(">2 hours<");
   });
 
   it("allows admin to restart host", async () => {

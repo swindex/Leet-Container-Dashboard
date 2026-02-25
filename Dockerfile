@@ -1,16 +1,15 @@
-FROM node:20-alpine AS base
+FROM oven/bun:1-alpine AS base
 WORKDIR /app
 
 RUN apk add --no-cache docker-cli
 
-COPY package.json package-lock.json* ./
-RUN npm install --omit=dev
+COPY package.json bun.lock* ./
+RUN bun install --production --frozen-lockfile
 
 COPY src ./src
-COPY views ./views
-COPY public ./public
+COPY data ./data
 
 ENV NODE_ENV=production
 EXPOSE 3000
 
-CMD ["node", "src/index.js"]
+CMD ["bun", "run", "src/index.ts"]

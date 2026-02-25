@@ -73,6 +73,16 @@ function toBooleanFormValue(value: unknown): boolean {
   return value === "true" || value === "on" || value === "1";
 }
 
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string");
+  }
+  if (typeof value === "string") {
+    return [value];
+  }
+  return [];
+}
+
 function parseDockerLabels(labels: string): Record<string, string> {
   if (!labels) {
     return {};
@@ -188,8 +198,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
   const app = express();
 
   app.set("view engine", "ejs");
-  app.set("views", path.join(__dirname, "..", "views"));
-  app.use("/public", express.static(path.join(__dirname, "..", "public")));
+  app.set("views", path.join(__dirname, "views"));
+  app.use("/public", express.static(path.join(__dirname, "public")));
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser(process.env.COOKIE_SECRET || "dev-secret"));
 
@@ -533,6 +543,81 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         });
 
         res.redirect("/?error=Failed%20to%20restart%20container");
+      }
+    }
+  );
+
+  app.post(
+    "/containers/restart",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_RESTART),
+    async (req, res) => {
+      const selectedContainerIds = [
+        ...toStringArray(req.body?.containers),
+        ...toStringArray(req.body?.["containers[]"]),
+      ]
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .filter((value, index, array) => array.indexOf(value) === index);
+
+      if (!selectedContainerIds.length) {
+        res.redirect("/?error=No%20containers%20selected");
+        return;
+      }
+
+      const restarted: string[] = [];
+      const failed: string[] = [];
+
+      try {
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+
+        for (const containerId of selectedContainerIds) {
+          try {
+            await deps.restartContainerById(containerId, server);
+            restarted.push(containerId);
+          } catch {
+            failed.push(containerId);
+          }
+        }
+
+        console.info("AUDIT container_restart_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          restarted,
+          failed,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: failed.length ? (restarted.length ? "partial" : "error") : "success",
+        });
+
+        if (!failed.length) {
+          res.redirect(`/?notice=${encodeURIComponent(`${restarted.length} container(s) restarted successfully`)}`);
+          return;
+        }
+
+        if (!restarted.length) {
+          res.redirect("/?error=Failed%20to%20restart%20selected%20containers");
+          return;
+        }
+
+        res.redirect(
+          `/?error=${encodeURIComponent(
+            `Restarted ${restarted.length} container(s), failed ${failed.length}: ${failed.join(", ")}`
+          )}`
+        );
+      } catch (error) {
+        console.warn("AUDIT container_restart_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        res.redirect("/?error=Failed%20to%20restart%20selected%20containers");
       }
     }
   );

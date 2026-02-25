@@ -27,6 +27,20 @@
   --bs-table-color: #dce9f8;
   --bs-table-border-color: #1e2c3d;
   --bs-table-striped-bg: rgba(31, 47, 65, 0.4);
+  width: 100%;
+}
+
+.table-hs th,
+.table-hs td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.table-hs .select-col,
+.table-hs .group-select-cell,
+.table-hs .container-select-cell {
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .status-pill {
@@ -58,6 +72,27 @@
 .compose-group-row td {
   background: rgba(35, 56, 79, 0.35);
   border-top-width: 2px;
+}
+
+.select-col,
+.group-select-cell,
+.container-select-cell {
+  width: 2.75rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.selected-action-bar {
+  background: #0d1722;
+  border: 1px solid #274059;
+  border-radius: 10px;
+  padding: 0.65rem 0.8rem;
+}
+
+.select-col .form-check-input:not(:checked),
+.group-select-cell .form-check-input:not(:checked),
+.container-select-cell .form-check-input:not(:checked) {
+  background-color: transparent;
 }
 
 .btn-hs-primary {
@@ -149,4 +184,14 @@
 
 .server-pill-disabled {
   opacity: 0.6;
+}
+
+@media (max-width: 767.98px) {
+  .containers-table-wrap {
+    overflow-x: hidden;
+  }
+
+  .table-hs .image-col {
+    display: none;
+  }
 }

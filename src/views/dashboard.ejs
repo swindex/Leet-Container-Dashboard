@@ -90,15 +90,45 @@
             <span class="text-muted"><%= containers.length %> running on <strong><%= servers.find(s => s.id === activeServerId)?.name || 'Selected server' %></strong></span>
           </div>
 
-          <div class="table-responsive">
+          <form
+            id="bulk-restart-form"
+            action="/containers/restart"
+            method="post"
+            class="selected-action-bar d-none mb-3"
+            onsubmit="return confirm('Restart selected containers? This may briefly interrupt service.');"
+          >
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div class="fw-semibold">Selected: <span id="selected-count">0</span></div>
+              <div id="selected-container-inputs"></div>
+              <button
+                id="bulk-restart-button"
+                type="submit"
+                class="btn btn-sm btn-hs-primary"
+                <%= can.canRestartContainers ? '' : 'disabled' %>
+              >
+                <i class="fa-solid fa-rotate-right me-1"></i>Restart
+              </button>
+            </div>
+          </form>
+
+          <div class="table-responsive containers-table-wrap">
             <table class="table table-hs align-middle mb-0">
               <thead>
                 <tr>
+                  <th class="select-col">
+                    <input
+                      id="toggle-all-containers"
+                      class="form-check-input"
+                      type="checkbox"
+                      aria-label="Select all containers"
+                      <%= can.canRestartContainers ? '' : 'disabled' %>
+                    />
+                  </th>
                   <th>Name</th>
-                  <th>Image</th>
+                  <th class="image-col">Image</th>
                   <th>Uptime</th>
                   <th>Status</th>
-                  <th class="text-end">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -109,7 +139,16 @@
                 <% } %>
                 <% groupedContainers.forEach(group => { %>
                   <tr class="compose-group-row">
-                    <td colspan="5" class="fw-semibold">
+                    <td class="group-select-cell">
+                      <input
+                        class="form-check-input group-checkbox"
+                        type="checkbox"
+                        data-group-key="<%= group.key %>"
+                        aria-label="Select all containers in group <%= group.title %>"
+                        <%= can.canRestartContainers ? '' : 'disabled' %>
+                      />
+                    </td>
+                    <td colspan="4" class="fw-semibold">
                       <i class="fa-solid fa-layer-group me-2"></i><%= group.title %>
                       <% if (group.detail) { %>
                         <small class="text-muted ms-2"><%= group.detail %></small>
@@ -128,33 +167,27 @@
                     <% const normalizedHealth = healthText ? (healthText.charAt(0).toUpperCase() + healthText.slice(1).toLowerCase()) : ''; %>
                     <% const stateLabel = stateText ? (stateText.charAt(0).toUpperCase() + stateText.slice(1)) : ''; %>
                     <% const statusLabel = normalizedHealth || (isRestarting ? 'Restarting' : (isRunning ? 'Running' : (stateLabel || 'Unknown'))); %>
-                    <% const uptimeFromStatus = (c.Status || '').replace(/^Up\s+/i, '').replace(/\s*\([^)]*\)\s*$/,'').trim(); %>
-                    <% const uptimeText = (c.RunningFor || '').trim() || (isRunning ? uptimeFromStatus : '-'); %>
+                    <% const statusHasUpPrefix = /^up\s+/i.test(c.Status || ''); %>
+                    <% const uptimeFromStatus = statusHasUpPrefix ? (c.Status || '').replace(/^Up\s+/i, '').replace(/\s*\([^)]*\)\s*$/,'').trim() : ''; %>
+                    <% const uptimeText = isRunning ? (uptimeFromStatus || (c.RunningFor || '').trim() || '-') : '-'; %>
                     <tr>
+                      <td class="container-select-cell">
+                        <input
+                          class="form-check-input container-checkbox"
+                          type="checkbox"
+                          data-group-key="<%= group.key %>"
+                          value="<%= c.Names %>"
+                          aria-label="Select container <%= c.Names %>"
+                          <%= can.canRestartContainers ? '' : 'disabled' %>
+                        />
+                      </td>
                       <td>
                         <div class="fw-semibold"><%= c.Names %></div>
                         <small class="text-muted"><%= c.ID.slice(0, 12) %></small>
                       </td>
-                      <td><%= c.Image %></td>
+                      <td class="image-col"><%= c.Image %></td>
                       <td><%= uptimeText || '-' %></td>
                       <td><span class="<%= statusClass %>"><%= statusLabel %></span></td>
-                      <td class="text-end">
-                        <% if (can.canRestartContainers) { %>
-                          <form
-                            action="/containers/<%= encodeURIComponent(c.Names) %>/restart"
-                            method="post"
-                            class="d-inline"
-                            onsubmit="return confirm('Restart selected container? This may briefly interrupt service.');"
-                          >
-                            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                            <button type="submit" class="btn btn-sm btn-hs-primary">
-                              <i class="fa-solid fa-rotate-right me-1"></i>Restart
-                            </button>
-                          </form>
-                        <% } else { %>
-                          <span class="text-muted">No access</span>
-                        <% } %>
-                      </td>
                     </tr>
                   <% }) %>
                 <% }) %>
@@ -220,5 +253,109 @@
       </div>
     </div>
   </div>
+
+  <script>
+    (() => {
+      const toggleAll = document.getElementById('toggle-all-containers');
+      const containerCheckboxes = Array.from(document.querySelectorAll('.container-checkbox'));
+      const groupCheckboxes = Array.from(document.querySelectorAll('.group-checkbox'));
+      const selectedBar = document.getElementById('bulk-restart-form');
+      const selectedCount = document.getElementById('selected-count');
+      const selectedInputs = document.getElementById('selected-container-inputs');
+      const bulkRestartButton = document.getElementById('bulk-restart-button');
+
+      if (!toggleAll || !selectedBar || !selectedCount || !selectedInputs || !bulkRestartButton) {
+        return;
+      }
+
+      const selectableContainers = containerCheckboxes.filter((checkbox) => !checkbox.disabled);
+      const selectableGroups = groupCheckboxes.filter((checkbox) => !checkbox.disabled);
+
+      const getGroupContainers = (groupKey) =>
+        selectableContainers.filter((checkbox) => checkbox.dataset.groupKey === groupKey);
+
+      const setGroupState = (groupCheckbox) => {
+        const groupItems = getGroupContainers(groupCheckbox.dataset.groupKey || '');
+        const checkedCount = groupItems.filter((checkbox) => checkbox.checked).length;
+
+        groupCheckbox.checked = groupItems.length > 0 && checkedCount === groupItems.length;
+        groupCheckbox.indeterminate = checkedCount > 0 && checkedCount < groupItems.length;
+      };
+
+      const setGlobalState = () => {
+        const checkedCount = selectableContainers.filter((checkbox) => checkbox.checked).length;
+
+        toggleAll.checked = selectableContainers.length > 0 && checkedCount === selectableContainers.length;
+        toggleAll.indeterminate = checkedCount > 0 && checkedCount < selectableContainers.length;
+      };
+
+      const updateSelectedAction = () => {
+        const selected = selectableContainers.filter((checkbox) => checkbox.checked);
+
+        selectedCount.textContent = String(selected.length);
+        selectedBar.classList.toggle('d-none', selected.length === 0);
+        bulkRestartButton.disabled = selected.length === 0 || bulkRestartButton.hasAttribute('data-permission-denied');
+
+        selectedInputs.innerHTML = '';
+        for (const checkbox of selected) {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'containers';
+          input.value = checkbox.value;
+          selectedInputs.appendChild(input);
+        }
+      };
+
+      if (bulkRestartButton.disabled) {
+        bulkRestartButton.setAttribute('data-permission-denied', 'true');
+      }
+
+      if (!selectableContainers.length) {
+        toggleAll.disabled = true;
+      }
+
+      selectableGroups.forEach((groupCheckbox) => {
+        const groupItems = getGroupContainers(groupCheckbox.dataset.groupKey || '');
+        if (!groupItems.length) {
+          groupCheckbox.disabled = true;
+          return;
+        }
+
+        groupCheckbox.addEventListener('change', () => {
+          groupItems.forEach((checkbox) => {
+            checkbox.checked = groupCheckbox.checked;
+          });
+          setGroupState(groupCheckbox);
+          setGlobalState();
+          updateSelectedAction();
+        });
+      });
+
+      selectableContainers.forEach((checkbox) => {
+        checkbox.addEventListener('change', () => {
+          const groupCheckbox = selectableGroups.find((item) => item.dataset.groupKey === checkbox.dataset.groupKey);
+          if (groupCheckbox) {
+            setGroupState(groupCheckbox);
+          }
+          setGlobalState();
+          updateSelectedAction();
+        });
+      });
+
+      toggleAll.addEventListener('change', () => {
+        selectableContainers.forEach((checkbox) => {
+          checkbox.checked = toggleAll.checked;
+        });
+
+        selectableGroups.forEach((groupCheckbox) => setGroupState(groupCheckbox));
+        setGlobalState();
+        updateSelectedAction();
+      });
+
+      selectableGroups.forEach((groupCheckbox) => setGroupState(groupCheckbox));
+      setGlobalState();
+      updateSelectedAction();
+    })();
+  </script>
 </body>
 </html>
