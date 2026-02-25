@@ -44,8 +44,16 @@ type AppDeps = {
 };
 
 type DashboardContainerGroup = {
-  composeFile: string;
+  key: string;
+  title: string;
+  detail: string;
   containers: DockerContainer[];
+};
+
+type ResolvedComposeGroup = {
+  key: string;
+  title: string;
+  detail: string;
 };
 
 const defaultDeps: AppDeps = {
@@ -95,52 +103,83 @@ function getBaseNameFromPath(pathValue: string): string {
   return parts[parts.length - 1] || trimmed;
 }
 
-function resolveComposeGroup(container: DockerContainer): string {
+function resolveComposeGroup(container: DockerContainer): ResolvedComposeGroup {
   const labels = parseDockerLabels(container.Labels || "");
-  const configFilesLabel = labels["com.docker.compose.project.config_files"] || "";
-  const firstConfigFile = configFilesLabel
+  const projectName = (labels["com.docker.compose.project"] || "").trim();
+  const workingDir = (labels["com.docker.compose.project.working_dir"] || "").trim();
+  const configFiles = (labels["com.docker.compose.project.config_files"] || "")
     .split(",")
     .map((item) => item.trim())
     .find(Boolean);
 
-  if (firstConfigFile) {
-    return getBaseNameFromPath(firstConfigFile);
-  }
+  const configFilesList = (labels["com.docker.compose.project.config_files"] || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
-  const projectName = (labels["com.docker.compose.project"] || "").trim();
+  const configFilesDisplay = configFilesList
+    .map((filePath) => getBaseNameFromPath(filePath))
+    .filter(Boolean)
+    .join(", ");
+
   if (projectName) {
-    return projectName;
+    return {
+      key: `project:${projectName}`,
+      title: projectName,
+      detail: configFilesDisplay,
+    };
   }
 
-  return "Ungrouped";
+  if (workingDir || configFilesList.length) {
+    const key = `compose:${workingDir}::${configFilesList.join("|")}`;
+    const title = getBaseNameFromPath(workingDir) || getBaseNameFromPath(configFiles) || "Compose Stack";
+    const detail = [workingDir, configFilesDisplay].filter(Boolean).join(" • ");
+
+    return {
+      key,
+      title,
+      detail,
+    };
+  }
+
+  return {
+    key: "ungrouped",
+    title: "Ungrouped",
+    detail: "",
+  };
 }
 
 function groupContainersByComposeFile(containers: DockerContainer[]): DashboardContainerGroup[] {
-  const grouped = new Map<string, DockerContainer[]>();
+  const grouped = new Map<string, DashboardContainerGroup>();
 
   for (const container of containers) {
-    const groupName = resolveComposeGroup(container);
-    const existing = grouped.get(groupName);
+    const group = resolveComposeGroup(container);
+    const existing = grouped.get(group.key);
     if (existing) {
-      existing.push(container);
+      existing.containers.push(container);
     } else {
-      grouped.set(groupName, [container]);
+      grouped.set(group.key, {
+        key: group.key,
+        title: group.title,
+        detail: group.detail,
+        containers: [container],
+      });
     }
   }
 
-  return Array.from(grouped.entries())
-    .map(([composeFile, entries]) => ({
-      composeFile,
-      containers: entries.sort((a, b) => a.Names.localeCompare(b.Names)),
+  return Array.from(grouped.values())
+    .map((group) => ({
+      ...group,
+      containers: group.containers.sort((a, b) => a.Names.localeCompare(b.Names)),
     }))
     .sort((a, b) => {
-      if (a.composeFile === "Ungrouped") {
+      if (a.title === "Ungrouped") {
         return 1;
       }
-      if (b.composeFile === "Ungrouped") {
+      if (b.title === "Ungrouped") {
         return -1;
       }
-      return a.composeFile.localeCompare(b.composeFile);
+      return a.title.localeCompare(b.title);
     });
 }
 

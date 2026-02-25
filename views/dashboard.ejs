@@ -110,7 +110,10 @@
                 <% groupedContainers.forEach(group => { %>
                   <tr class="compose-group-row">
                     <td colspan="5" class="fw-semibold">
-                      <i class="fa-solid fa-layer-group me-2"></i><%= group.composeFile %>
+                      <i class="fa-solid fa-layer-group me-2"></i><%= group.title %>
+                      <% if (group.detail) { %>
+                        <small class="text-muted ms-2"><%= group.detail %></small>
+                      <% } %>
                       <small class="text-muted ms-2">(<%= group.containers.length %> container<%= group.containers.length === 1 ? '' : 's' %>)</small>
                     </td>
                   </tr>
@@ -120,7 +123,13 @@
                     <% const isRunning = stateText === 'running' || statusText.startsWith('up'); %>
                     <% const isRestarting = stateText === 'restarting' || statusText.includes('restarting'); %>
                     <% const statusClass = isRestarting ? 'status-pill status-pill-restarting' : (isRunning ? 'status-pill status-pill-running' : 'status-pill status-pill-stopped'); %>
-                    <% const uptimeText = (c.RunningFor || '').trim() || (isRunning ? (c.Status || '').replace(/^Up\s+/i, '').trim() : '-'); %>
+                    <% const healthMatch = (c.Status || '').match(/\(([^)]+)\)/); %>
+                    <% const healthText = (healthMatch?.[1] || '').trim(); %>
+                    <% const normalizedHealth = healthText ? (healthText.charAt(0).toUpperCase() + healthText.slice(1).toLowerCase()) : ''; %>
+                    <% const stateLabel = stateText ? (stateText.charAt(0).toUpperCase() + stateText.slice(1)) : ''; %>
+                    <% const statusLabel = normalizedHealth || (isRestarting ? 'Restarting' : (isRunning ? 'Running' : (stateLabel || 'Unknown'))); %>
+                    <% const uptimeFromStatus = (c.Status || '').replace(/^Up\s+/i, '').replace(/\s*\([^)]*\)\s*$/,'').trim(); %>
+                    <% const uptimeText = (c.RunningFor || '').trim() || (isRunning ? uptimeFromStatus : '-'); %>
                     <tr>
                       <td>
                         <div class="fw-semibold"><%= c.Names %></div>
@@ -128,7 +137,7 @@
                       </td>
                       <td><%= c.Image %></td>
                       <td><%= uptimeText || '-' %></td>
-                      <td><span class="<%= statusClass %>"><%= c.Status %></span></td>
+                      <td><span class="<%= statusClass %>"><%= statusLabel %></span></td>
                       <td class="text-end">
                         <% if (can.canRestartContainers) { %>
                           <form

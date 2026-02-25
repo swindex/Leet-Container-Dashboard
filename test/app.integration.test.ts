@@ -259,6 +259,82 @@ describe("home server dashboard integration", () => {
     expect(restartHostMock).toHaveBeenCalledTimes(1);
   });
 
+  it("groups containers by compose project rather than compose filename", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "aaa111",
+          Names: "service-a",
+          Image: "repo/service-a:latest",
+          Status: "Up 5 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels:
+            "com.docker.compose.project=stack-a,com.docker.compose.project.config_files=/srv/a/docker-compose.yml",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+        {
+          ID: "bbb222",
+          Names: "service-b",
+          Image: "repo/service-b:latest",
+          Status: "Up 8 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels:
+            "com.docker.compose.project=stack-b,com.docker.compose.project.config_files=/srv/b/docker-compose.yml",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+        {
+          ID: "ccc333",
+          Names: "service-c",
+          Image: "repo/service-c:latest",
+          Status: "Up 10 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    expect(dashboardRes.text).toContain("stack-a");
+    expect(dashboardRes.text).toContain("stack-b");
+    expect(dashboardRes.text).toContain("Ungrouped");
+
+    const stackAIndex = dashboardRes.text.indexOf("stack-a");
+    const stackBIndex = dashboardRes.text.indexOf("stack-b");
+    const ungroupedIndex = dashboardRes.text.indexOf("Ungrouped");
+
+    expect(stackAIndex).toBeGreaterThan(-1);
+    expect(stackBIndex).toBeGreaterThan(-1);
+    expect(ungroupedIndex).toBeGreaterThan(-1);
+    expect(ungroupedIndex).toBeGreaterThan(stackAIndex);
+    expect(ungroupedIndex).toBeGreaterThan(stackBIndex);
+  });
+
   it("shows user management access on dashboard only for admin", async () => {
     const app = createApp({
       listContainers: async () => [],
