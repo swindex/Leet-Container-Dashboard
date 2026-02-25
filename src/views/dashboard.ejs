@@ -15,34 +15,41 @@
 <body class="hs-body">
   <div class="container py-4">
     <div class="row g-3 align-items-stretch mb-4">
-      <div class="col-12 col-lg-8">
+      <div class="col-12">
         <div class="panel h-100 d-flex flex-column justify-content-center">
           <h1 class="mb-2"><i class="fa-solid fa-server me-2"></i>Home Server Dashboard</h1>
           <p class="text-muted mb-0">Monitor containers and execute operations according to your role.</p>
         </div>
       </div>
-      <div class="col-12 col-lg-4">
-        <div class="panel h-100">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <span class="text-muted">Signed in as</span>
-            <span class="role-badge"><%= user.role %></span>
-          </div>
-          <div class="fw-semibold mb-3"><i class="fa-solid fa-user me-2"></i><%= user.username %></div>
-          <form action="/logout" method="post" class="d-grid">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <button type="submit" class="btn btn-hs-secondary">
-              <i class="fa-solid fa-right-from-bracket me-2"></i>Logout
-            </button>
-          </form>
-        </div>
-      </div>
     </div>
 
+    <nav class="navbar navbar-expand-md hs-mobile-admin-nav d-md-none mb-3" aria-label="User and administration navigation">
+      <div class="container-fluid px-0">
+        <span class="navbar-brand mb-0"><i class="fa-solid fa-user me-2"></i>User Menu</span>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#mobile-user-admin-nav"
+          aria-controls="mobile-user-admin-nav"
+          aria-expanded="false"
+          aria-label="Toggle user and administration menu"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mobile-user-admin-nav">
+          <div class="panel w-100 mt-2">
+            <%- include('partials/userAdministrationBlock') %>
+          </div>
+        </div>
+      </div>
+    </nav>
+
     <% if (notice) { %>
-      <div class="alert alert-success" role="alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
+      <div class="alert alert-success hs-flash-alert" role="alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
     <% } %>
     <% if (error) { %>
-      <div class="alert alert-danger" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
+      <div class="alert alert-danger hs-flash-alert" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
     <% } %>
 
     <div class="panel mb-3">
@@ -198,6 +205,11 @@
       </div>
 
       <div class="col-12 col-xl-3">
+        <div class="panel mb-3 d-none d-md-block">
+          <h2 class="h5 mb-3"><i class="fa-solid fa-user me-2"></i>User Menu</h2>
+          <%- include('partials/userAdministrationBlock') %>
+        </div>
+
         <div class="panel mb-3">
           <h2 class="h5 mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Permissions</h2>
           <ul class="list-unstyled mb-0 small">
@@ -210,52 +222,25 @@
           </ul>
         </div>
 
-        <% if (can.canManageUsers || can.canManageServers) { %>
-          <div class="panel mb-3">
-            <h2 class="h5 mb-3"><i class="fa-solid fa-user-gear me-2"></i>Administration</h2>
-            <div class="d-grid gap-2">
-              <% if (can.canManageUsers) { %>
-                <a href="/users" class="btn btn-hs-secondary w-100">
-                  <i class="fa-solid fa-users me-2"></i>User Management
-                </a>
-              <% } %>
-              <% if (can.canManageServers) { %>
-                <a href="/servers" class="btn btn-hs-secondary w-100">
-                  <i class="fa-solid fa-server me-2"></i>Server Management
-                </a>
-              <% } %>
-            </div>
-          </div>
-        <% } %>
-
-        <div class="panel danger-zone">
-          <h2 class="h5 mb-3"><i class="fa-solid fa-triangle-exclamation me-2"></i>Host Controls</h2>
-          <p class="text-muted small">Host restart impacts all services and active sessions.</p>
-
-          <% if (can.canRestartHost) { %>
-            <form
-              action="/host/restart"
-              method="post"
-              class="d-grid"
-              onsubmit="return confirm('Restart host machine? This will impact all running services and active sessions.');"
-            >
-              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-              <button type="submit" class="btn btn-hs-danger">
-                <i class="fa-solid fa-power-off me-2"></i>Restart Host
-              </button>
-            </form>
-          <% } else { %>
-            <button type="button" class="btn btn-hs-disabled w-100" disabled>
-              <i class="fa-solid fa-lock me-2"></i>Admin Permission Required
-            </button>
-          <% } %>
-        </div>
       </div>
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     (() => {
+      const flashAlerts = Array.from(document.querySelectorAll('.hs-flash-alert'));
+      if (flashAlerts.length) {
+        window.setTimeout(() => {
+          flashAlerts.forEach((alertEl) => {
+            alertEl.classList.add('hs-flash-alert-hidden');
+            window.setTimeout(() => {
+              alertEl.remove();
+            }, 250);
+          });
+        }, 5000);
+      }
+
       const toggleAll = document.getElementById('toggle-all-containers');
       const containerCheckboxes = Array.from(document.querySelectorAll('.container-checkbox'));
       const groupCheckboxes = Array.from(document.querySelectorAll('.group-checkbox'));

@@ -63,6 +63,8 @@ type SessionPayload = {
   user: AppSessionUser;
   csrfToken: string;
   activeServerId?: string;
+  flashNotice?: string;
+  flashError?: string;
 };
 
 declare global {
@@ -250,6 +252,15 @@ function readSessionFromRequest(req: Request): SessionPayload | null {
   return fromCookieSession(cookieValue);
 }
 
+function writeSessionToResponse(res: Response, req: Request, session: SessionPayload): void {
+  const cookieValue = toCookieSession(session);
+  res.cookie(SESSION_COOKIE_NAME, cookieValue, authCookieOptions());
+
+  const signedCookies = (req.signedCookies ?? {}) as Record<string, string>;
+  signedCookies[SESSION_COOKIE_NAME] = cookieValue;
+  req.signedCookies = signedCookies;
+}
+
 export function setActiveServerSession(res: Response, req: Request, serverId: string): void {
   const session = readSessionFromRequest(req);
   if (!session) {
@@ -260,11 +271,70 @@ export function setActiveServerSession(res: Response, req: Request, serverId: st
     ...session,
     activeServerId: serverId,
   };
-  res.cookie(SESSION_COOKIE_NAME, toCookieSession(updated), authCookieOptions());
+  writeSessionToResponse(res, req, updated);
 }
 
 export function getActiveServerSessionId(req: Request): string | undefined {
   return readSessionFromRequest(req)?.activeServerId;
+}
+
+function normalizeFlashMessage(value: unknown): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().slice(0, 180);
+}
+
+export function setFlashSession(
+  res: Response,
+  req: Request,
+  flash: {
+    notice?: string;
+    error?: string;
+  }
+): void {
+  const session = readSessionFromRequest(req);
+  if (!session) {
+    throw new Error("Not authenticated");
+  }
+
+  const notice = normalizeFlashMessage(flash.notice);
+  const error = normalizeFlashMessage(flash.error);
+
+  const updated: SessionPayload = {
+    ...session,
+    flashNotice: notice || undefined,
+    flashError: error || undefined,
+  };
+
+  writeSessionToResponse(res, req, updated);
+}
+
+export function consumeFlashSession(
+  res: Response,
+  req: Request
+): {
+  notice: string;
+  error: string;
+} {
+  const session = readSessionFromRequest(req);
+  if (!session) {
+    return { notice: "", error: "" };
+  }
+
+  const notice = normalizeFlashMessage(session.flashNotice);
+  const error = normalizeFlashMessage(session.flashError);
+
+  if (session.flashNotice || session.flashError) {
+    const updated: SessionPayload = {
+      ...session,
+      flashNotice: undefined,
+      flashError: undefined,
+    };
+    writeSessionToResponse(res, req, updated);
+  }
+
+  return { notice, error };
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {

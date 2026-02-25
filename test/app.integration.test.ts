@@ -492,7 +492,11 @@ describe("home server dashboard integration", () => {
       role: ROLES.OPERATOR,
     });
     expect(createRes.status).toBe(302);
-    expect(createRes.headers.location).toContain("/users?notice=");
+    expect(createRes.headers.location).toBe("/users");
+
+    const usersAfterCreateRes = await agent.get("/users");
+    expect(usersAfterCreateRes.status).toBe(200);
+    expect(usersAfterCreateRes.text).toContain("User created successfully");
 
     let users = await readUsersFromFile(usersFilePath);
     const createdUser = users.find((u) => u.username === "temp-user-1");
@@ -548,14 +552,22 @@ describe("home server dashboard integration", () => {
       .type("form")
       .send({ _csrf: csrf });
     expect(disableRes.status).toBe(302);
-    expect(disableRes.headers.location).toContain("/users?error=");
+    expect(disableRes.headers.location).toBe("/users");
+
+    const usersAfterDisableRes = await agent.get("/users");
+    expect(usersAfterDisableRes.status).toBe(200);
+    expect(usersAfterDisableRes.text).toContain("You cannot disable your own account");
 
     const deleteRes = await agent
       .post(`/users/${encodeURIComponent(admin!.id)}/delete`)
       .type("form")
       .send({ _csrf: csrf });
     expect(deleteRes.status).toBe(302);
-    expect(deleteRes.headers.location).toContain("/users?error=");
+    expect(deleteRes.headers.location).toBe("/users");
+
+    const usersAfterDeleteRes = await agent.get("/users");
+    expect(usersAfterDeleteRes.status).toBe(200);
+    expect(usersAfterDeleteRes.text).toContain("You cannot delete your own account");
   });
 
   it("blocks disabling/deleting the original admin and hides those actions in UI", async () => {
@@ -600,14 +612,22 @@ describe("home server dashboard integration", () => {
       .type("form")
       .send({ _csrf: secondAdminCsrf });
     expect(disableOriginalRes.status).toBe(302);
-    expect(decodeURIComponent(disableOriginalRes.headers.location)).toContain("Cannot disable the original admin");
+    expect(disableOriginalRes.headers.location).toBe("/users");
+
+    const usersAfterDisableOriginalRes = await secondAdminAgent.get("/users");
+    expect(usersAfterDisableOriginalRes.status).toBe(200);
+    expect(usersAfterDisableOriginalRes.text).toContain("Cannot disable the original admin");
 
     const deleteOriginalRes = await secondAdminAgent
       .post(`/users/${encodeURIComponent(originalAdmin!.id)}/delete`)
       .type("form")
       .send({ _csrf: secondAdminCsrf });
     expect(deleteOriginalRes.status).toBe(302);
-    expect(decodeURIComponent(deleteOriginalRes.headers.location)).toContain("Cannot delete the original admin");
+    expect(deleteOriginalRes.headers.location).toBe("/users");
+
+    const usersAfterDeleteOriginalRes = await secondAdminAgent.get("/users");
+    expect(usersAfterDeleteOriginalRes.status).toBe(200);
+    expect(usersAfterDeleteOriginalRes.text).toContain("Cannot delete the original admin");
 
     const usersAfter = await readUsersFromFile(usersFilePath);
     expect(usersAfter.find((u) => u.id === originalAdmin!.id)?.active).toBe(true);

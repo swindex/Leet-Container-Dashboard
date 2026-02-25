@@ -22,30 +22,25 @@
       </div>
       <div class="col-12 col-lg-4">
         <div class="panel h-100">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <span class="text-muted">Signed in as</span>
-            <span class="role-badge"><%= user.role %></span>
-          </div>
-          <div class="fw-semibold mb-3"><i class="fa-solid fa-user me-2"></i><%= user.username %></div>
-          <div class="d-grid gap-2">
-            <a href="/" class="btn btn-hs-secondary w-100">
-              <i class="fa-solid fa-arrow-left me-2"></i>Back to Dashboard
-            </a>
-            <% if (can.canManageServers) { %>
-              <a href="/servers" class="btn btn-hs-secondary w-100">
-                <i class="fa-solid fa-server me-2"></i>Server Management
-              </a>
-            <% } %>
-          </div>
+          <%- include('partials/secondaryPageUserBlock', {
+            user,
+            extraLinks: () => {
+              let links = '';
+              if (can.canManageServers) {
+                links += '<a href="/servers" class="btn btn-hs-secondary w-100"><i class="fa-solid fa-server me-2"></i>Server Management</a>';
+              }
+              return links;
+            }
+          }) %>
         </div>
       </div>
     </div>
 
     <% if (notice) { %>
-      <div class="alert alert-success" role="alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
+      <div class="alert alert-success hs-flash-alert" role="alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
     <% } %>
     <% if (error) { %>
-      <div class="alert alert-danger" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
+      <div class="alert alert-danger hs-flash-alert" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
     <% } %>
 
     <div class="row g-3">
@@ -178,5 +173,23 @@
       </div>
     </div>
   </div>
+
+  <script>
+    (() => {
+      const flashAlerts = Array.from(document.querySelectorAll('.hs-flash-alert'));
+      if (!flashAlerts.length) {
+        return;
+      }
+
+      window.setTimeout(() => {
+        flashAlerts.forEach((alertEl) => {
+          alertEl.classList.add('hs-flash-alert-hidden');
+          window.setTimeout(() => {
+            alertEl.remove();
+          }, 250);
+        });
+      }, 5000);
+    })();
+  </script>
 </body>
 </html>

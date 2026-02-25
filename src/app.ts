@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
 import {
+  consumeFlashSession,
   createManagedUser,
   ensureCsrf,
   getActiveServerSessionId,
@@ -13,6 +14,7 @@ import {
   requireAuth,
   requirePermission,
   setActiveServerSession,
+  setFlashSession,
   setManagedUserActiveStatus,
   deleteManagedUser,
 } from "./lib/auth.js";
@@ -61,13 +63,6 @@ const defaultDeps: AppDeps = {
   restartContainerById: restartContainer,
   restartHostMachine: restartHost,
 };
-
-function parseMessage(value: unknown): string {
-  if (typeof value !== "string") {
-    return "";
-  }
-  return value.slice(0, 180);
-}
 
 function toBooleanFormValue(value: unknown): boolean {
   return value === "true" || value === "on" || value === "1";
@@ -227,8 +222,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       const containers = await deps.listContainers(activeServer);
       const groupedContainers = groupContainersByComposeFile(containers);
       const can = getPermissionFlags(req.user);
-      const notice = parseMessage(req.query.notice);
-      const error = parseMessage(req.query.error);
+      const { notice, error } = consumeFlashSession(res, req);
 
       res.render("dashboard", {
         user: req.user,
@@ -282,9 +276,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           result: "success",
         });
 
-        res.redirect("/?notice=Server%20switched%20successfully");
+        setFlashSession(res, req, { notice: "Server switched successfully" });
+        res.redirect("/");
       } catch (error) {
-        res.redirect(`/?error=${encodeURIComponent((error as Error).message || "Failed to switch server")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to switch server" });
+        res.redirect("/");
       }
     }
   );
@@ -304,9 +300,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         const role = validRoles.includes(roleInput as Role) ? (roleInput as Role) : ROLES.VIEWER;
 
         await createManagedUser({ username, password, role });
-        res.redirect("/users?notice=User%20created%20successfully");
+        setFlashSession(res, req, { notice: "User created successfully" });
+        res.redirect("/users");
       } catch (error) {
-        res.redirect(`/users?error=${encodeURIComponent((error as Error).message || "Failed to create user")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to create user" });
+        res.redirect("/users");
       }
     }
   );
@@ -323,9 +321,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           active: false,
           actorUserId: req.user!.id,
         });
-        res.redirect("/users?notice=User%20disabled%20successfully");
+        setFlashSession(res, req, { notice: "User disabled successfully" });
+        res.redirect("/users");
       } catch (error) {
-        res.redirect(`/users?error=${encodeURIComponent((error as Error).message || "Failed to disable user")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to disable user" });
+        res.redirect("/users");
       }
     }
   );
@@ -342,9 +342,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           active: true,
           actorUserId: req.user!.id,
         });
-        res.redirect("/users?notice=User%20enabled%20successfully");
+        setFlashSession(res, req, { notice: "User enabled successfully" });
+        res.redirect("/users");
       } catch (error) {
-        res.redirect(`/users?error=${encodeURIComponent((error as Error).message || "Failed to enable user")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to enable user" });
+        res.redirect("/users");
       }
     }
   );
@@ -360,9 +362,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           userId: req.params.userId,
           actorUserId: req.user!.id,
         });
-        res.redirect("/users?notice=User%20removed%20successfully");
+        setFlashSession(res, req, { notice: "User removed successfully" });
+        res.redirect("/users");
       } catch (error) {
-        res.redirect(`/users?error=${encodeURIComponent((error as Error).message || "Failed to remove user")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to remove user" });
+        res.redirect("/users");
       }
     }
   );
@@ -375,8 +379,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       try {
         const users = await listManagedUsers(req.user!.id);
         const can = getPermissionFlags(req.user);
-        const notice = parseMessage(req.query.notice);
-        const error = parseMessage(req.query.error);
+        const { notice, error } = consumeFlashSession(res, req);
 
         res.render("users", {
           user: req.user,
@@ -408,8 +411,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     async (req, res) => {
       try {
         const { servers, defaultServerId } = await listRemoteServers();
-        const notice = parseMessage(req.query.notice);
-        const error = parseMessage(req.query.error);
+        const { notice, error } = consumeFlashSession(res, req);
 
         res.render("servers", {
           user: req.user,
@@ -448,9 +450,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           password: typeof req.body?.password === "string" ? req.body.password : "",
           enabled: toBooleanFormValue(req.body?.enabled),
         });
-        res.redirect("/servers?notice=Server%20created%20successfully");
+        setFlashSession(res, req, { notice: "Server created successfully" });
+        res.redirect("/servers");
       } catch (error) {
-        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to create server")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to create server" });
+        res.redirect("/servers");
       }
     }
   );
@@ -472,9 +476,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
         setActiveServerSession(res, req, server.id);
-        res.redirect("/servers?notice=Server%20updated%20successfully");
+        setFlashSession(res, req, { notice: "Server updated successfully" });
+        res.redirect("/servers");
       } catch (error) {
-        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to update server")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to update server" });
+        res.redirect("/servers");
       }
     }
   );
@@ -489,9 +495,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         await deleteRemoteServer(req.params.serverId);
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
         setActiveServerSession(res, req, server.id);
-        res.redirect("/servers?notice=Server%20removed%20successfully");
+        setFlashSession(res, req, { notice: "Server removed successfully" });
+        res.redirect("/servers");
       } catch (error) {
-        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to delete server")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to delete server" });
+        res.redirect("/servers");
       }
     }
   );
@@ -504,9 +512,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     async (req, res) => {
       try {
         await setDefaultServer(req.params.serverId);
-        res.redirect("/servers?notice=Default%20server%20updated%20successfully");
+        setFlashSession(res, req, { notice: "Default server updated successfully" });
+        res.redirect("/servers");
       } catch (error) {
-        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to set default server")}`);
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to set default server" });
+        res.redirect("/servers");
       }
     }
   );
@@ -531,7 +541,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           result: "success",
         });
 
-        res.redirect("/?notice=Container%20restarted%20successfully");
+        setFlashSession(res, req, { notice: "Container restarted successfully" });
+        res.redirect("/");
       } catch (error) {
         console.warn("AUDIT container_restart", {
           actor: req.user?.username,
@@ -542,7 +553,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           message: (error as Error).message,
         });
 
-        res.redirect("/?error=Failed%20to%20restart%20container");
+        setFlashSession(res, req, { error: "Failed to restart container" });
+        res.redirect("/");
       }
     }
   );
@@ -562,7 +574,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         .filter((value, index, array) => array.indexOf(value) === index);
 
       if (!selectedContainerIds.length) {
-        res.redirect("/?error=No%20containers%20selected");
+        setFlashSession(res, req, { error: "No containers selected" });
+        res.redirect("/");
         return;
       }
 
@@ -593,20 +606,21 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         });
 
         if (!failed.length) {
-          res.redirect(`/?notice=${encodeURIComponent(`${restarted.length} container(s) restarted successfully`)}`);
+          setFlashSession(res, req, { notice: `${restarted.length} container(s) restarted successfully` });
+          res.redirect("/");
           return;
         }
 
         if (!restarted.length) {
-          res.redirect("/?error=Failed%20to%20restart%20selected%20containers");
+          setFlashSession(res, req, { error: "Failed to restart selected containers" });
+          res.redirect("/");
           return;
         }
 
-        res.redirect(
-          `/?error=${encodeURIComponent(
-            `Restarted ${restarted.length} container(s), failed ${failed.length}: ${failed.join(", ")}`
-          )}`
-        );
+        setFlashSession(res, req, {
+          error: `Restarted ${restarted.length} container(s), failed ${failed.length}: ${failed.join(", ")}`,
+        });
+        res.redirect("/");
       } catch (error) {
         console.warn("AUDIT container_restart_bulk", {
           actor: req.user?.username,
@@ -617,7 +631,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           message: (error as Error).message,
         });
 
-        res.redirect("/?error=Failed%20to%20restart%20selected%20containers");
+        setFlashSession(res, req, { error: "Failed to restart selected containers" });
+        res.redirect("/");
       }
     }
   );
@@ -638,7 +653,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           result: "success",
         });
 
-        res.redirect("/?notice=Host%20restart%20command%20issued");
+        setFlashSession(res, req, { notice: "Host restart command issued" });
+        res.redirect("/");
       } catch (error) {
         console.warn("AUDIT host_restart", {
           actor: req.user?.username,
@@ -648,7 +664,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           message: (error as Error).message,
         });
 
-        res.redirect("/?error=Failed%20to%20restart%20host");
+        setFlashSession(res, req, { error: "Failed to restart host" });
+        res.redirect("/");
       }
     }
   );
