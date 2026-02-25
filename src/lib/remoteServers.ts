@@ -4,6 +4,7 @@ import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
 
 const DEFAULT_REMOTE_SERVERS_PATH = resolveDataPath("remoteServers.json");
+const ENCRYPTED_PASSWORD_PREFIX = "enc:v1";
 
 export type RemoteServer = {
   id: string;
@@ -21,6 +22,54 @@ type RemoteServersFile = {
 };
 
 const LOCAL_SERVER_ID = "local";
+let runtimeRemoteServersKey: Buffer | null = null;
+
+function getRemoteServersEncryptionKey(): Buffer {
+  const configured = process.env.REMOTE_SERVERS_KEY?.trim();
+  if (configured) {
+    return crypto.createHash("sha256").update(configured).digest();
+  }
+
+  if (!runtimeRemoteServersKey) {
+    runtimeRemoteServersKey = crypto.randomBytes(32);
+    console.warn("REMOTE_SERVERS_KEY is not set. Using an ephemeral key for remote server password encryption.");
+  }
+
+  return runtimeRemoteServersKey;
+}
+
+function encryptRemoteServerPassword(plainText: string): string {
+  if (!plainText) {
+    return "";
+  }
+
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", getRemoteServersEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(plainText, "utf-8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+
+  return `${ENCRYPTED_PASSWORD_PREFIX}:${iv.toString("base64url")}:${authTag.toString("base64url")}:${encrypted.toString("base64url")}`;
+}
+
+function decryptRemoteServerPassword(storedValue: string): string {
+  if (!storedValue || !storedValue.startsWith(`${ENCRYPTED_PASSWORD_PREFIX}:`)) {
+    return storedValue;
+  }
+
+  const parts = storedValue.split(":");
+  if (parts.length !== 5) {
+    throw new Error("Invalid encrypted password format in remote server config.");
+  }
+
+  const iv = Buffer.from(parts[2], "base64url");
+  const authTag = Buffer.from(parts[3], "base64url");
+  const encrypted = Buffer.from(parts[4], "base64url");
+  const decipher = crypto.createDecipheriv("aes-256-gcm", getRemoteServersEncryptionKey(), iv);
+  decipher.setAuthTag(authTag);
+
+  const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+  return decrypted.toString("utf-8");
+}
 
 function getRemoteServersFilePath(): string {
   return process.env.REMOTE_SERVERS_FILE || DEFAULT_REMOTE_SERVERS_PATH;
@@ -103,6 +152,35 @@ function validateRemoteServersFile(input: unknown): RemoteServersFile {
   };
 }
 
+function decryptRemoteServerPasswords(file: RemoteServersFile): RemoteServersFile {
+  return {
+    ...file,
+    servers: file.servers.map((server) => ({
+      ...server,
+      password: decryptRemoteServerPassword(server.password || ""),
+    })),
+  };
+}
+
+function encryptRemoteServerPasswords(file: RemoteServersFile): RemoteServersFile {
+  return {
+    ...file,
+    servers: file.servers.map((server) => {
+      if (server.isLocal) {
+        return {
+          ...server,
+          password: "",
+        };
+      }
+
+      return {
+        ...server,
+        password: encryptRemoteServerPassword(server.password || ""),
+      };
+    }),
+  };
+}
+
 async function ensureRemoteServersFileExists(filePath = getRemoteServersFilePath()): Promise<void> {
   try {
     await fs.access(filePath);
@@ -120,12 +198,14 @@ async function readRemoteServersFile(filePath = getRemoteServersFilePath()): Pro
   await ensureRemoteServersFileExists(filePath);
   const text = await fs.readFile(filePath, "utf-8");
   const parsed = JSON.parse(text) as unknown;
-  return validateRemoteServersFile(parsed);
+  const validated = validateRemoteServersFile(parsed);
+  return decryptRemoteServerPasswords(validated);
 }
 
 async function writeRemoteServersFile(data: RemoteServersFile, filePath = getRemoteServersFilePath()): Promise<void> {
   const validated = validateRemoteServersFile(data);
-  await fs.writeFile(filePath, JSON.stringify(validated, null, 2), "utf-8");
+  const encrypted = encryptRemoteServerPasswords(validated);
+  await fs.writeFile(filePath, JSON.stringify(encrypted, null, 2), "utf-8");
 }
 
 export async function listRemoteServers(): Promise<{ defaultServerId: string; servers: RemoteServer[] }> {

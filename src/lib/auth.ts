@@ -107,7 +107,15 @@ export async function isBootstrapAdminMode(): Promise<boolean> {
 
 async function createBootstrapAdmin(usernameInput: string, password: string): Promise<AppSessionUser | null> {
   const username = usernameInput.trim();
-  if (!username || !password) {
+  if (!USERNAME_REGEX.test(username)) {
+    throw new Error("Username must be 3-50 chars and use letters, numbers, _, ., or -");
+  }
+
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+    throw new Error("Password must be between 8 and 128 characters");
+  }
+
+  if (!password.trim()) {
     return null;
   }
 
@@ -371,7 +379,20 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
 export function ensureCsrf(req: Request, res: Response, next: NextFunction): void {
   const tokenFromForm = typeof req.body?._csrf === "string" ? req.body._csrf : "";
-  if (!req.csrfToken || !tokenFromForm || tokenFromForm !== req.csrfToken) {
+  const sessionToken = req.csrfToken;
+
+  if (!sessionToken || !tokenFromForm) {
+    res.status(403).send("Invalid CSRF token");
+    return;
+  }
+
+  const sessionBuffer = Buffer.from(sessionToken);
+  const formBuffer = Buffer.from(tokenFromForm);
+
+  if (
+    sessionBuffer.length !== formBuffer.length ||
+    !crypto.timingSafeEqual(sessionBuffer, formBuffer)
+  ) {
     res.status(403).send("Invalid CSRF token");
     return;
   }

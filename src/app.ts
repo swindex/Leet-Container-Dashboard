@@ -111,6 +111,16 @@ type ResolvedComposeGroup = {
   detail: string;
 };
 
+function resolveCookieSecret(): string {
+  const cookieSecret = process.env.COOKIE_SECRET?.trim();
+  if (cookieSecret) {
+    return cookieSecret;
+  }
+
+  console.warn("COOKIE_SECRET is not set. Using an ephemeral secret for this process.");
+  return crypto.randomBytes(32).toString("hex");
+}
+
 function resolveDashboardTheme(value: unknown): DashboardTheme {
   return value === "light" ? "light" : "dark";
 }
@@ -569,6 +579,7 @@ function groupContainersByComposeFile(
 export function createApp(partialDeps?: Partial<AppDeps>) {
   const deps = { ...defaultDeps, ...partialDeps };
   const app = express();
+  const cookieSecret = resolveCookieSecret();
   const dashboardUploadsDir = getDashboardBackgroundUploadsPath();
   const dashboardUploadsRootDir = path.dirname(dashboardUploadsDir);
   const dashboardUpload = multer({
@@ -580,10 +591,17 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
+  app.disable("x-powered-by");
+  app.use((_req, res, next) => {
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Referrer-Policy", "no-referrer");
+    next();
+  });
   app.use("/public", express.static(path.join(__dirname, "public")));
   app.use("/uploads", express.static(dashboardUploadsRootDir));
   app.use(express.urlencoded({ extended: false }));
-  app.use(cookieParser(process.env.COOKIE_SECRET || "dev-secret"));
+  app.use(cookieParser(cookieSecret));
 
   void fs.mkdir(dashboardUploadsDir, { recursive: true });
 

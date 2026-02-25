@@ -81,6 +81,7 @@ describe("home server dashboard integration", () => {
   let restoreDashboardSettingsFile: string | undefined;
   let restoreDashboardUploadsDir: string | undefined;
   let restoreCookieSecret: string | undefined;
+  let restoreNodeEnv: string | undefined;
 
   const restartContainerMock = vi.fn(async (_containerId: string) => undefined);
   const removeContainerMock = vi.fn(async (_containerId: string) => undefined);
@@ -95,6 +96,7 @@ describe("home server dashboard integration", () => {
     restoreDashboardSettingsFile = process.env.DASHBOARD_SETTINGS_FILE;
     restoreDashboardUploadsDir = process.env.DASHBOARD_UPLOADS_DIR;
     restoreCookieSecret = process.env.COOKIE_SECRET;
+    restoreNodeEnv = process.env.NODE_ENV;
 
     usersFilePath = path.resolve(process.cwd(), "data", "test", "users.json");
     await fs.mkdir(path.dirname(usersFilePath), { recursive: true });
@@ -250,6 +252,12 @@ describe("home server dashboard integration", () => {
       process.env.COOKIE_SECRET = restoreCookieSecret;
     }
 
+    if (restoreNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = restoreNodeEnv;
+    }
+
     if (dashboardSettingsFilePath) {
       await fs.rm(path.dirname(dashboardSettingsFilePath), { recursive: true, force: true });
     }
@@ -267,6 +275,89 @@ describe("home server dashboard integration", () => {
     const res = await request(app).get("/");
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe("/login");
+  });
+
+  it("adds common security headers to responses", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const res = await request(app).get("/login");
+    expect(res.status).toBe(200);
+    expect(res.headers["x-frame-options"]).toBe("DENY");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
+    expect(res.headers["x-powered-by"]).toBeUndefined();
+  });
+
+  it("auto-generates a cookie secret when not configured", async () => {
+    delete process.env.COOKIE_SECRET;
+
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const res = await request(app).get("/login");
+    expect(res.status).toBe(200);
+
+    process.env.COOKIE_SECRET = "integration-test-secret";
+  });
+
+  it("stores remote server passwords encrypted at rest", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    const serversPage = await agent.get("/servers");
+    expect(serversPage.status).toBe(200);
+    const csrf = extractCsrfToken(serversPage.text);
+
+    const createServerRes = await agent
+      .post("/servers")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        name: "Encrypted Remote",
+        host: "10.0.0.99",
+        username: "root",
+        password: "TopSecret#Pass123",
+        enabled: "on",
+      });
+
+    expect(createServerRes.status).toBe(302);
+    expect(createServerRes.headers.location).toBe("/servers");
+
+    const fileText = await fs.readFile(remoteServersFilePath, "utf-8");
+    expect(fileText).toContain("enc:v1:");
+    expect(fileText).not.toContain("TopSecret#Pass123");
+
+    const remoteServers = await readRemoteServersFromFile(remoteServersFilePath);
+    expect(remoteServers.servers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: "Encrypted Remote",
+          host: "10.0.0.99",
+          username: "root",
+          password: expect.stringMatching(/^enc:v1:/),
+          isLocal: false,
+        }),
+      ])
+    );
   });
 
   it("allows viewer to view dashboard, but blocks restart commands", async () => {
