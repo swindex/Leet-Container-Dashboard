@@ -4,9 +4,10 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { hasPermission, type Permission, type Role, PERMISSIONS, ROLES } from "./rbac.js";
+import { resolveDataPath } from "./dataPaths.js";
 
 const SESSION_COOKIE_NAME = "hs_session";
-const DEFAULT_USERS_PATH = path.resolve(process.cwd(), "data", "users.json");
+const DEFAULT_USERS_PATH = resolveDataPath("users.json");
 const DEFAULT_TEST_USERS_PATH = path.resolve(process.cwd(), "data", "users.test.json");
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 10 * 60 * 1000;

@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import { resolveDataPath } from "./dataPaths.js";
 
 export const DEFAULT_DASHBOARD_SETTINGS = {
   appTitle: "Leet Container Dashboard",
@@ -25,8 +26,8 @@ export type DashboardSettings = {
   showContainerHash: boolean;
 };
 
-const DEFAULT_DASHBOARD_SETTINGS_PATH = path.resolve(process.cwd(), "data", "dashboardSettings.json");
-const DEFAULT_DASHBOARD_UPLOADS_PATH = path.resolve(process.cwd(), "data", "uploads", "backgrounds");
+const DEFAULT_DASHBOARD_SETTINGS_PATH = resolveDataPath("dashboardSettings.json");
+const DEFAULT_DASHBOARD_UPLOADS_PATH = resolveDataPath("uploads", "backgrounds");
 
 export function getDashboardSettingsFilePath(): string {
   return process.env.DASHBOARD_SETTINGS_FILE || DEFAULT_DASHBOARD_SETTINGS_PATH;

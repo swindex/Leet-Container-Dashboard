@@ -1,8 +1,9 @@
 import fs from "fs/promises";
-import path from "path";
 import crypto from "crypto";
+import path from "path";
+import { resolveDataPath } from "./dataPaths.js";
 
-const DEFAULT_REMOTE_SERVERS_PATH = path.resolve(process.cwd(), "data", "remoteServers.json");
+const DEFAULT_REMOTE_SERVERS_PATH = resolveDataPath("remoteServers.json");
 
 export type RemoteServer = {
   id: string;

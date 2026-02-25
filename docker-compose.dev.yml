@@ -7,10 +7,13 @@ services:
       - "3000:3000"
     environment:
       - PORT=3000
+      - NODE_ENV=development
+      - DATA_DIR=/app/data-secret
       - COOKIE_NAME=hsp_session
       - COOKIE_SECRET=change-this-to-a-long-random-string
     volumes:
-      - ./data-secret:/app/data
+      - ./data-secret:/app/data-secret
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/app
+    command: bun run dev
     restart: unless-stopped
