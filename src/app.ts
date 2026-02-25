@@ -12,6 +12,7 @@ import {
   getActiveServerSessionId,
   getPermissionFlags,
   handleLogin,
+  isBootstrapAdminMode,
   listManagedUsers,
   logout,
   requireAuth,
@@ -608,8 +609,13 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     }
   });
 
-  app.get("/login", (_req, res) => {
-    res.render("login", { error: "", username: "" });
+  app.get("/login", async (_req, res, next) => {
+    try {
+      const isBootstrapMode = await isBootstrapAdminMode();
+      res.render("login", { error: "", username: "", isBootstrapMode });
+    } catch (err) {
+      next(err);
+    }
   });
 
   app.post("/login", async (req, res, next) => {

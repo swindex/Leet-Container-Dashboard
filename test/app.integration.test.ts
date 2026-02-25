@@ -1626,6 +1626,12 @@ describe("home server dashboard integration", () => {
     const username = "first-admin-user";
     const password = "any-password-value";
 
+    const loginPageRes = await agent.get("/login");
+    expect(loginPageRes.status).toBe(200);
+    expect(loginPageRes.text).toContain("Authenticate to access Leet Container Dashboard home server controls.");
+    expect(loginPageRes.text).toContain("No users found. You are about to create the OG admin account.");
+    expect(loginPageRes.text).toContain("Create Admin");
+
     const loginRes = await agent.post("/login").type("form").send({ username, password });
     expect(loginRes.status).toBe(302);
     expect(loginRes.headers.location).toBe("/");

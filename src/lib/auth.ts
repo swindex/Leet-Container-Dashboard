@@ -100,6 +100,11 @@ async function writeUsersFile(data: UsersFile, usersFilePath = getUsersFilePath(
   await fs.writeFile(usersFilePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
+export async function isBootstrapAdminMode(): Promise<boolean> {
+  const usersFile = await readUsersFile();
+  return usersFile.users.length === 0;
+}
+
 async function createBootstrapAdmin(usernameInput: string, password: string): Promise<AppSessionUser | null> {
   const username = usernameInput.trim();
   if (!username || !password) {
@@ -613,6 +618,7 @@ export async function initAdminFromEnv(): Promise<void> {
 export async function handleLogin(req: Request, res: Response): Promise<void> {
   const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const isBootstrapMode = await isBootstrapAdminMode();
 
   const bootstrapUser = await createBootstrapAdmin(username, password);
   if (bootstrapUser) {
@@ -627,14 +633,22 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
   const allowed = canAttemptLogin(identity);
   if (!allowed.allowed) {
     const waitSeconds = Math.ceil((allowed.waitMs ?? 0) / 1000);
-    res.status(429).render("login", { error: `Too many attempts. Try again in ${waitSeconds}s.`, username });
+    res.status(429).render("login", {
+      error: `Too many attempts. Try again in ${waitSeconds}s.`,
+      username,
+      isBootstrapMode,
+    });
     return;
   }
 
   const user = await authenticateUser(username, password);
   if (!user) {
     registerFailedLogin(identity);
-    res.status(401).render("login", { error: "Invalid credentials", username });
+    res.status(401).render("login", {
+      error: "Invalid credentials",
+      username,
+      isBootstrapMode,
+    });
     return;
   }
 
