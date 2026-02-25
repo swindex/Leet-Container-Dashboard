@@ -50,6 +50,9 @@ describe("home server dashboard integration", () => {
   let restoreCookieSecret: string | undefined;
 
   const restartContainerMock = vi.fn(async (_containerId: string) => undefined);
+  const removeContainerMock = vi.fn(async (_containerId: string) => undefined);
+  const startContainerMock = vi.fn(async (_containerId: string) => undefined);
+  const stopContainerMock = vi.fn(async (_containerId: string) => undefined);
   const restartHostMock = vi.fn(async () => undefined);
 
   beforeAll(async () => {
@@ -111,6 +114,9 @@ describe("home server dashboard integration", () => {
 
   beforeEach(() => {
     restartContainerMock.mockClear();
+    removeContainerMock.mockClear();
+    startContainerMock.mockClear();
+    stopContainerMock.mockClear();
     restartHostMock.mockClear();
   });
 
@@ -135,6 +141,8 @@ describe("home server dashboard integration", () => {
   it("redirects unauthenticated users to login", async () => {
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -164,6 +172,9 @@ describe("home server dashboard integration", () => {
           State: "",
         },
       ],
+      removeContainerById: removeContainerMock,
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -183,6 +194,90 @@ describe("home server dashboard integration", () => {
 
     expect(restartRes.status).toBe(403);
     expect(restartContainerMock).not.toHaveBeenCalled();
+
+    const startRes = await agent
+      .post("/containers/start")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["nginx"] });
+    expect(startRes.status).toBe(403);
+    expect(startContainerMock).not.toHaveBeenCalled();
+
+    const stopRes = await agent
+      .post("/containers/stop")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["nginx"] });
+    expect(stopRes.status).toBe(403);
+    expect(stopContainerMock).not.toHaveBeenCalled();
+
+    const removeRes = await agent
+      .post("/containers/remove")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["nginx"] });
+    expect(removeRes.status).toBe(403);
+    expect(removeContainerMock).not.toHaveBeenCalled();
+  });
+
+  it("allows operator to remove stopped containers and skips running ones", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "rm111",
+          Names: "old-worker",
+          Image: "repo/worker:latest",
+          Status: "Exited (0) 3 minutes ago",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "exited",
+        },
+        {
+          ID: "run111",
+          Names: "live-api",
+          Image: "repo/api:latest",
+          Status: "Up 9 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      removeContainerById: removeContainerMock,
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "operator1", "OperatorPassword#2026");
+    const csrf = extractCsrfToken(dashboardRes.text);
+
+    const removeRes = await agent
+      .post("/containers/remove")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["old-worker", "live-api"] });
+
+    expect(removeRes.status).toBe(302);
+    expect(removeContainerMock).toHaveBeenCalledTimes(1);
+    expect(removeContainerMock).toHaveBeenCalledWith(
+      "old-worker",
+      expect.objectContaining({
+        id: "local",
+        isLocal: true,
+      })
+    );
   });
 
   it("allows operator to restart containers but not host", async () => {
@@ -205,6 +300,8 @@ describe("home server dashboard integration", () => {
           State: "",
         },
       ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -274,6 +371,8 @@ describe("home server dashboard integration", () => {
           State: "running",
         },
       ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -307,6 +406,81 @@ describe("home server dashboard integration", () => {
     );
   });
 
+  it("allows operator to start and stop selected containers", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "start111",
+          Names: "stopped-worker",
+          Image: "repo/worker:latest",
+          Status: "Exited (0) 1 minute ago",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "exited",
+        },
+        {
+          ID: "stop111",
+          Names: "running-api",
+          Image: "repo/api:latest",
+          Status: "Up 5 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "operator1", "OperatorPassword#2026");
+    const csrf = extractCsrfToken(dashboardRes.text);
+
+    const startRes = await agent
+      .post("/containers/start")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["stopped-worker"] });
+    expect(startRes.status).toBe(302);
+    expect(startContainerMock).toHaveBeenCalledTimes(1);
+    expect(startContainerMock).toHaveBeenCalledWith(
+      "stopped-worker",
+      expect.objectContaining({
+        id: "local",
+        isLocal: true,
+      })
+    );
+
+    const stopRes = await agent
+      .post("/containers/stop")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["running-api"] });
+    expect(stopRes.status).toBe(302);
+    expect(stopContainerMock).toHaveBeenCalledTimes(1);
+    expect(stopContainerMock).toHaveBeenCalledWith(
+      "running-api",
+      expect.objectContaining({
+        id: "local",
+        isLocal: true,
+      })
+    );
+  });
+
   it("prefers status-based uptime over stale RunningFor value", async () => {
     const app = createApp({
       listContainers: async () => [
@@ -327,6 +501,8 @@ describe("home server dashboard integration", () => {
           State: "running",
         },
       ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -339,9 +515,63 @@ describe("home server dashboard integration", () => {
     expect(dashboardRes.text).not.toContain(">2 hours<");
   });
 
+  it("shows stopped status label for exited containers instead of exit code", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "stoplbl111",
+          Names: "stopped-by-test",
+          Image: "repo/stopped:latest",
+          Status: "Exited (0) 2 minutes ago",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "exited",
+        },
+        {
+          ID: "stopoom111",
+          Names: "stopped-oom",
+          Image: "repo/stopped-oom:latest",
+          Status: "Exited (137) 20 seconds ago",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "exited",
+        },
+      ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    expect(dashboardRes.text).toContain("stopped-by-test");
+    expect(dashboardRes.text).toContain("status-pill status-pill-stopped\" title=\"Stopped reason: Completed\">Stopped<");
+    expect(dashboardRes.text).not.toContain("status-pill status-pill-stopped\">0<");
+    expect(dashboardRes.text).toContain("stopped-oom");
+    expect(dashboardRes.text).toContain("status-pill status-pill-stopped\" title=\"Stopped reason: Killed / Possible OOM\">Stopped<");
+  });
+
   it("allows admin to restart host", async () => {
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -414,6 +644,8 @@ describe("home server dashboard integration", () => {
           State: "running",
         },
       ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -439,6 +671,8 @@ describe("home server dashboard integration", () => {
   it("shows user management access on dashboard only for admin", async () => {
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -457,6 +691,8 @@ describe("home server dashboard integration", () => {
   it("allows admin to access users screen and blocks non-admin", async () => {
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -477,6 +713,8 @@ describe("home server dashboard integration", () => {
   it("allows admin to add, disable/enable, and remove users", async () => {
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -535,6 +773,8 @@ describe("home server dashboard integration", () => {
   it("blocks admin self-disable and self-delete", async () => {
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -573,6 +813,8 @@ describe("home server dashboard integration", () => {
   it("blocks disabling/deleting the original admin and hides those actions in UI", async () => {
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });
@@ -639,6 +881,8 @@ describe("home server dashboard integration", () => {
 
     const app = createApp({
       listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
       restartHostMachine: restartHostMock,
     });

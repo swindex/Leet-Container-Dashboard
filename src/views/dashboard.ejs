@@ -94,30 +94,92 @@
         <div class="panel">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h4 mb-0"><i class="fa-brands fa-docker me-2"></i>Containers</h2>
-            <span class="text-muted"><%= containers.length %> running on <strong><%= servers.find(s => s.id === activeServerId)?.name || 'Selected server' %></strong></span>
+            <span class="text-muted"><%= containers.length %> total on <strong><%= servers.find(s => s.id === activeServerId)?.name || 'Selected server' %></strong></span>
           </div>
 
-          <form
-            id="bulk-restart-form"
-            action="/containers/restart"
-            method="post"
-            class="selected-action-bar d-none mb-3"
-            onsubmit="return confirm('Restart selected containers? This may briefly interrupt service.');"
-          >
+          <div id="selected-action-bar" class="selected-action-bar d-none mb-3">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
               <div class="fw-semibold">Selected: <span id="selected-count">0</span></div>
-              <div id="selected-container-inputs"></div>
-              <button
-                id="bulk-restart-button"
-                type="submit"
-                class="btn btn-sm btn-hs-primary"
-                <%= can.canRestartContainers ? '' : 'disabled' %>
-              >
-                <i class="fa-solid fa-rotate-right me-1"></i>Restart
-              </button>
+              <div class="d-flex align-items-center flex-wrap gap-2">
+                <form
+                  id="bulk-remove-form"
+                  action="/containers/remove"
+                  method="post"
+                  class="d-inline"
+                  onsubmit="return confirm('Remove selected stopped containers? This permanently deletes container entries.');"
+                >
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <div id="selected-container-inputs-remove"></div>
+                  <button
+                    id="bulk-remove-button"
+                    type="submit"
+                    class="btn btn-sm btn-outline-danger"
+                    <%= can.canRestartContainers ? '' : 'disabled' %>
+                  >
+                    <i class="fa-solid fa-trash me-1"></i>Remove
+                  </button>
+                </form>
+
+                <form
+                  id="bulk-start-form"
+                  action="/containers/start"
+                  method="post"
+                  class="d-inline"
+                  onsubmit="return confirm('Start selected containers?');"
+                >
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <div id="selected-container-inputs-start"></div>
+                  <button
+                    id="bulk-start-button"
+                    type="submit"
+                    class="btn btn-sm btn-success"
+                    <%= can.canRestartContainers ? '' : 'disabled' %>
+                  >
+                    <i class="fa-solid fa-play me-1"></i>Start
+                  </button>
+                </form>
+
+                <form
+                  id="bulk-stop-form"
+                  action="/containers/stop"
+                  method="post"
+                  class="d-inline"
+                  onsubmit="return confirm('Stop selected containers? This may interrupt service.');"
+                >
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <div id="selected-container-inputs-stop"></div>
+                  <button
+                    id="bulk-stop-button"
+                    type="submit"
+                    class="btn btn-sm btn-danger"
+                    <%= can.canRestartContainers ? '' : 'disabled' %>
+                  >
+                    <i class="fa-solid fa-stop me-1"></i>Stop
+                  </button>
+                </form>
+
+                <form
+                  id="bulk-restart-form"
+                  action="/containers/restart"
+                  method="post"
+                  class="d-inline"
+                  onsubmit="return confirm('Restart selected containers? This may briefly interrupt service.');"
+                >
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <div id="selected-container-inputs-restart"></div>
+                  <button
+                    id="bulk-restart-button"
+                    type="submit"
+                    class="btn btn-sm btn-hs-primary"
+                    <%= can.canRestartContainers ? '' : 'disabled' %>
+                  >
+                    <i class="fa-solid fa-rotate-right me-1"></i>Restart
+                  </button>
+                </form>
+              </div>
             </div>
-          </form>
+          </div>
 
           <div class="table-responsive containers-table-wrap">
             <table class="table table-hs align-middle mb-0">
@@ -141,7 +203,7 @@
               <tbody>
                 <% if (!containers.length) { %>
                   <tr>
-                    <td colspan="5" class="text-center text-muted py-4">No running containers detected.</td>
+                    <td colspan="5" class="text-center text-muted py-4">No containers detected.</td>
                   </tr>
                 <% } %>
                 <% groupedContainers.forEach(group => { %>
@@ -180,10 +242,32 @@
                     <% const isRestarting = stateText === 'restarting' || statusText.includes('restarting'); %>
                     <% const statusClass = isRestarting ? 'status-pill status-pill-restarting' : (isRunning ? 'status-pill status-pill-running' : 'status-pill status-pill-stopped'); %>
                     <% const healthMatch = (c.Status || '').match(/\(([^)]+)\)/); %>
-                    <% const healthText = (healthMatch?.[1] || '').trim(); %>
-                    <% const normalizedHealth = healthText ? (healthText.charAt(0).toUpperCase() + healthText.slice(1).toLowerCase()) : ''; %>
+                    <% const rawHealthText = (healthMatch?.[1] || '').trim(); %>
+                    <% const healthText = statusText.startsWith('up') ? rawHealthText.replace(/^health:\s*/i, '').trim() : ''; %>
+                    <% const healthLower = healthText.toLowerCase(); %>
+                    <% const hasKnownHealth = healthLower === 'healthy' || healthLower === 'unhealthy' || healthLower === 'starting'; %>
+                    <% const normalizedHealth = hasKnownHealth ? (healthText.charAt(0).toUpperCase() + healthText.slice(1).toLowerCase()) : ''; %>
+                    <% const exitedCodeMatch = (c.Status || '').match(/^Exited\s+\((\d+)\)/i); %>
+                    <% const exitedCode = exitedCodeMatch ? Number.parseInt(exitedCodeMatch[1], 10) : NaN; %>
+                    <% const hasExitCode = Number.isFinite(exitedCode); %>
+                    <% const exitReasonByCode = {
+                      0: 'Completed',
+                      1: 'General error',
+                      125: 'Docker run failed',
+                      126: 'Command cannot execute',
+                      127: 'Command not found',
+                      137: 'Killed / Possible OOM',
+                      139: 'Segmentation fault',
+                      143: 'Terminated',
+                    }; %>
+                    <% const stoppedReason = hasExitCode
+                      ? (exitReasonByCode[exitedCode] || `Error ${exitedCode}`)
+                      : (stateText === 'dead' || statusText.startsWith('dead') ? 'Dead' : ''); %>
                     <% const stateLabel = stateText ? (stateText.charAt(0).toUpperCase() + stateText.slice(1)) : ''; %>
-                    <% const statusLabel = normalizedHealth || (isRestarting ? 'Restarting' : (isRunning ? 'Running' : (stateLabel || 'Unknown'))); %>
+                    <% const isStopped = stateText === 'exited' || stateText === 'dead' || statusText.startsWith('exited') || statusText.startsWith('dead'); %>
+                    <% const stoppedLabel = 'Stopped'; %>
+                    <% const statusLabel = normalizedHealth || (isRestarting ? 'Restarting' : (isRunning ? 'Running' : (isStopped ? stoppedLabel : (stateLabel || 'Unknown')))); %>
+                    <% const statusTitle = isStopped && stoppedReason ? `Stopped reason: ${stoppedReason}` : statusLabel; %>
                     <% const statusHasUpPrefix = /^up\s+/i.test(c.Status || ''); %>
                     <% const uptimeFromStatus = statusHasUpPrefix ? (c.Status || '').replace(/^Up\s+/i, '').replace(/\s*\([^)]*\)\s*$/,'').trim() : ''; %>
                     <% const uptimeText = isRunning ? (uptimeFromStatus || (c.RunningFor || '').trim() || '-') : '-'; %>
@@ -193,6 +277,7 @@
                           class="form-check-input container-checkbox"
                           type="checkbox"
                           data-group-key="<%= group.key %>"
+                          data-is-running="<%= isRunning ? 'true' : 'false' %>"
                           value="<%= c.Names %>"
                           aria-label="Select container <%= c.Names %>"
                           <%= can.canRestartContainers ? '' : 'disabled' %>
@@ -214,7 +299,7 @@
                       </td>
                       <td class="image-col"><%= c.Image %></td>
                       <td><%= uptimeText || '-' %></td>
-                      <td><span class="<%= statusClass %>"><%= statusLabel %></span></td>
+                      <td><span class="<%= statusClass %>" title="<%= statusTitle %>"><%= statusLabel %></span></td>
                     </tr>
                   <% }) %>
                 <% }) %>
@@ -264,12 +349,30 @@
       const toggleAll = document.getElementById('toggle-all-containers');
       const containerCheckboxes = Array.from(document.querySelectorAll('.container-checkbox'));
       const groupCheckboxes = Array.from(document.querySelectorAll('.group-checkbox'));
-      const selectedBar = document.getElementById('bulk-restart-form');
+      const selectedBar = document.getElementById('selected-action-bar');
       const selectedCount = document.getElementById('selected-count');
-      const selectedInputs = document.getElementById('selected-container-inputs');
+      const selectedInputsRemove = document.getElementById('selected-container-inputs-remove');
+      const selectedInputsStart = document.getElementById('selected-container-inputs-start');
+      const selectedInputsStop = document.getElementById('selected-container-inputs-stop');
+      const selectedInputsRestart = document.getElementById('selected-container-inputs-restart');
+      const bulkRemoveButton = document.getElementById('bulk-remove-button');
+      const bulkStartButton = document.getElementById('bulk-start-button');
+      const bulkStopButton = document.getElementById('bulk-stop-button');
       const bulkRestartButton = document.getElementById('bulk-restart-button');
 
-      if (!toggleAll || !selectedBar || !selectedCount || !selectedInputs || !bulkRestartButton) {
+      if (
+        !toggleAll ||
+        !selectedBar ||
+        !selectedCount ||
+        !selectedInputsRemove ||
+        !selectedInputsStart ||
+        !selectedInputsStop ||
+        !selectedInputsRestart ||
+        !bulkRemoveButton ||
+        !bulkStartButton ||
+        !bulkStopButton ||
+        !bulkRestartButton
+      ) {
         return;
       }
 
@@ -296,20 +399,56 @@
 
       const updateSelectedAction = () => {
         const selected = selectableContainers.filter((checkbox) => checkbox.checked);
+        const selectedRunning = selected.filter((checkbox) => checkbox.dataset.isRunning === 'true').length;
+        const selectedStopped = selected.length - selectedRunning;
 
         selectedCount.textContent = String(selected.length);
         selectedBar.classList.toggle('d-none', selected.length === 0);
+        bulkRemoveButton.disabled =
+          selected.length === 0 ||
+          bulkRemoveButton.hasAttribute('data-permission-denied') ||
+          selectedRunning > 0;
+        bulkStartButton.disabled =
+          selected.length === 0 ||
+          bulkStartButton.hasAttribute('data-permission-denied') ||
+          selectedStopped === 0;
+        bulkStopButton.disabled =
+          selected.length === 0 ||
+          bulkStopButton.hasAttribute('data-permission-denied') ||
+          selectedRunning === 0;
         bulkRestartButton.disabled = selected.length === 0 || bulkRestartButton.hasAttribute('data-permission-denied');
 
-        selectedInputs.innerHTML = '';
+        selectedInputsRemove.innerHTML = '';
+        selectedInputsStart.innerHTML = '';
+        selectedInputsStop.innerHTML = '';
+        selectedInputsRestart.innerHTML = '';
         for (const checkbox of selected) {
-          const input = document.createElement('input');
-          input.type = 'hidden';
-          input.name = 'containers';
-          input.value = checkbox.value;
-          selectedInputs.appendChild(input);
+          const createInput = () => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'containers';
+            input.value = checkbox.value;
+            return input;
+          };
+
+          selectedInputsRemove.appendChild(createInput());
+          selectedInputsStart.appendChild(createInput());
+          selectedInputsStop.appendChild(createInput());
+          selectedInputsRestart.appendChild(createInput());
         }
       };
+
+      if (bulkRemoveButton.disabled) {
+        bulkRemoveButton.setAttribute('data-permission-denied', 'true');
+      }
+
+      if (bulkStartButton.disabled) {
+        bulkStartButton.setAttribute('data-permission-denied', 'true');
+      }
+
+      if (bulkStopButton.disabled) {
+        bulkStopButton.setAttribute('data-permission-denied', 'true');
+      }
 
       if (bulkRestartButton.disabled) {
         bulkRestartButton.setAttribute('data-permission-denied', 'true');

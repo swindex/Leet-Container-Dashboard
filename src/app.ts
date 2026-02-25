@@ -21,6 +21,9 @@ import {
 } from "./lib/auth.js";
 import {
   listRunningContainers,
+  removeContainer,
+  startContainer,
+  stopContainer,
   restartContainer,
   type DockerContainer,
   type DockerTargetServer,
@@ -42,6 +45,9 @@ const __dirname = path.dirname(__filename);
 
 type AppDeps = {
   listContainers: (server?: DockerTargetServer) => Promise<DockerContainer[]>;
+  removeContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
+  startContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
+  stopContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   restartContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   restartHostMachine: typeof restartHost;
 };
@@ -74,6 +80,9 @@ type ResolvedComposeGroup = {
 
 const defaultDeps: AppDeps = {
   listContainers: listRunningContainers,
+  removeContainerById: removeContainer,
+  startContainerById: startContainer,
+  stopContainerById: stopContainer,
   restartContainerById: restartContainer,
   restartHostMachine: restartHost,
 };
@@ -90,6 +99,37 @@ function toStringArray(value: unknown): string[] {
     return [value];
   }
   return [];
+}
+
+function getSelectedContainerIdsFromBody(body: unknown): string[] {
+  const bodyRecord = (body && typeof body === "object") ? (body as Record<string, unknown>) : {};
+
+  return [
+    ...toStringArray(bodyRecord.containers),
+    ...toStringArray(bodyRecord["containers[]"]),
+  ]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index);
+}
+
+function isContainerRunning(container: DockerContainer): boolean {
+  const stateText = (container.State || "").toLowerCase();
+  const statusText = (container.Status || "").toLowerCase();
+  return stateText === "running" || statusText.startsWith("up");
+}
+
+function containerMatchesIdentifier(container: DockerContainer, identifier: string): boolean {
+  const normalized = identifier.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    container.Names === normalized ||
+    container.ID === normalized ||
+    container.ID.startsWith(normalized)
+  );
 }
 
 function parseDockerLabels(labels: string): Record<string, string> {
@@ -638,6 +678,131 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
   );
 
   app.post(
+    "/containers/:containerId/remove",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_RESTART),
+    async (req, res) => {
+      try {
+        const { containerId } = req.params;
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        const containers = await deps.listContainers(server);
+        const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+
+        if (!target) {
+          throw new Error("Container not found");
+        }
+
+        if (isContainerRunning(target)) {
+          throw new Error("Container must be stopped before removing");
+        }
+
+        await deps.removeContainerById(containerId, server);
+
+        console.info("AUDIT container_remove", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          target: containerId,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: "success",
+        });
+
+        setFlashSession(res, req, { notice: "Container removed successfully" });
+        res.redirect("/");
+      } catch (error) {
+        console.warn("AUDIT container_remove", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          target: req.params.containerId,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to remove container" });
+        res.redirect("/");
+      }
+    }
+  );
+
+  app.post(
+    "/containers/:containerId/start",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_RESTART),
+    async (req, res) => {
+      try {
+        const { containerId } = req.params;
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        await deps.startContainerById(containerId, server);
+
+        console.info("AUDIT container_start", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          target: containerId,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: "success",
+        });
+
+        setFlashSession(res, req, { notice: "Container started successfully" });
+        res.redirect("/");
+      } catch (error) {
+        console.warn("AUDIT container_start", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          target: req.params.containerId,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        setFlashSession(res, req, { error: "Failed to start container" });
+        res.redirect("/");
+      }
+    }
+  );
+
+  app.post(
+    "/containers/:containerId/stop",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_RESTART),
+    async (req, res) => {
+      try {
+        const { containerId } = req.params;
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        await deps.stopContainerById(containerId, server);
+
+        console.info("AUDIT container_stop", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          target: containerId,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: "success",
+        });
+
+        setFlashSession(res, req, { notice: "Container stopped successfully" });
+        res.redirect("/");
+      } catch (error) {
+        console.warn("AUDIT container_stop", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          target: req.params.containerId,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        setFlashSession(res, req, { error: "Failed to stop container" });
+        res.redirect("/");
+      }
+    }
+  );
+
+  app.post(
     "/containers/:containerId/restart",
     requireAuth,
     ensureCsrf,
@@ -676,18 +841,257 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
   );
 
   app.post(
+    "/containers/remove",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_RESTART),
+    async (req, res) => {
+      const selectedContainerIds = getSelectedContainerIdsFromBody(req.body);
+
+      if (!selectedContainerIds.length) {
+        setFlashSession(res, req, { error: "No containers selected" });
+        res.redirect("/");
+        return;
+      }
+
+      const removed: string[] = [];
+      const failed: string[] = [];
+      const running: string[] = [];
+
+      try {
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        const containers = await deps.listContainers(server);
+
+        for (const containerId of selectedContainerIds) {
+          const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+
+          if (!target) {
+            failed.push(containerId);
+            continue;
+          }
+
+          if (isContainerRunning(target)) {
+            running.push(containerId);
+            continue;
+          }
+
+          try {
+            await deps.removeContainerById(containerId, server);
+            removed.push(containerId);
+          } catch {
+            failed.push(containerId);
+          }
+        }
+
+        console.info("AUDIT container_remove_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          removed,
+          running,
+          failed,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: (failed.length || running.length) ? (removed.length ? "partial" : "error") : "success",
+        });
+
+        if (!running.length && !failed.length) {
+          setFlashSession(res, req, { notice: `${removed.length} container(s) removed successfully` });
+          res.redirect("/");
+          return;
+        }
+
+        if (!removed.length) {
+          const runningMessage = running.length
+            ? `Cannot remove running container(s): ${running.join(", ")}`
+            : "";
+          const failedMessage = failed.length
+            ? `Failed to remove: ${failed.join(", ")}`
+            : "";
+          setFlashSession(res, req, {
+            error: [runningMessage, failedMessage].filter(Boolean).join(". ") || "Failed to remove selected containers",
+          });
+          res.redirect("/");
+          return;
+        }
+
+        const runningMessage = running.length
+          ? `Skipped running: ${running.join(", ")}`
+          : "";
+        const failedMessage = failed.length
+          ? `Failed: ${failed.join(", ")}`
+          : "";
+        setFlashSession(res, req, {
+          error: `Removed ${removed.length} container(s). ${[runningMessage, failedMessage].filter(Boolean).join(". ")}`,
+        });
+        res.redirect("/");
+      } catch (error) {
+        console.warn("AUDIT container_remove_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        setFlashSession(res, req, { error: "Failed to remove selected containers" });
+        res.redirect("/");
+      }
+    }
+  );
+
+  app.post(
+    "/containers/start",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_RESTART),
+    async (req, res) => {
+      const selectedContainerIds = getSelectedContainerIdsFromBody(req.body);
+
+      if (!selectedContainerIds.length) {
+        setFlashSession(res, req, { error: "No containers selected" });
+        res.redirect("/");
+        return;
+      }
+
+      const started: string[] = [];
+      const failed: string[] = [];
+
+      try {
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+
+        for (const containerId of selectedContainerIds) {
+          try {
+            await deps.startContainerById(containerId, server);
+            started.push(containerId);
+          } catch {
+            failed.push(containerId);
+          }
+        }
+
+        console.info("AUDIT container_start_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          started,
+          failed,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: failed.length ? (started.length ? "partial" : "error") : "success",
+        });
+
+        if (!failed.length) {
+          setFlashSession(res, req, { notice: `${started.length} container(s) started successfully` });
+          res.redirect("/");
+          return;
+        }
+
+        if (!started.length) {
+          setFlashSession(res, req, { error: "Failed to start selected containers" });
+          res.redirect("/");
+          return;
+        }
+
+        setFlashSession(res, req, {
+          error: `Started ${started.length} container(s), failed ${failed.length}: ${failed.join(", ")}`,
+        });
+        res.redirect("/");
+      } catch (error) {
+        console.warn("AUDIT container_start_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        setFlashSession(res, req, { error: "Failed to start selected containers" });
+        res.redirect("/");
+      }
+    }
+  );
+
+  app.post(
+    "/containers/stop",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_RESTART),
+    async (req, res) => {
+      const selectedContainerIds = getSelectedContainerIdsFromBody(req.body);
+
+      if (!selectedContainerIds.length) {
+        setFlashSession(res, req, { error: "No containers selected" });
+        res.redirect("/");
+        return;
+      }
+
+      const stopped: string[] = [];
+      const failed: string[] = [];
+
+      try {
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+
+        for (const containerId of selectedContainerIds) {
+          try {
+            await deps.stopContainerById(containerId, server);
+            stopped.push(containerId);
+          } catch {
+            failed.push(containerId);
+          }
+        }
+
+        console.info("AUDIT container_stop_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          stopped,
+          failed,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: failed.length ? (stopped.length ? "partial" : "error") : "success",
+        });
+
+        if (!failed.length) {
+          setFlashSession(res, req, { notice: `${stopped.length} container(s) stopped successfully` });
+          res.redirect("/");
+          return;
+        }
+
+        if (!stopped.length) {
+          setFlashSession(res, req, { error: "Failed to stop selected containers" });
+          res.redirect("/");
+          return;
+        }
+
+        setFlashSession(res, req, {
+          error: `Stopped ${stopped.length} container(s), failed ${failed.length}: ${failed.join(", ")}`,
+        });
+        res.redirect("/");
+      } catch (error) {
+        console.warn("AUDIT container_stop_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        setFlashSession(res, req, { error: "Failed to stop selected containers" });
+        res.redirect("/");
+      }
+    }
+  );
+
+  app.post(
     "/containers/restart",
     requireAuth,
     ensureCsrf,
     requirePermission(PERMISSIONS.CONTAINERS_RESTART),
     async (req, res) => {
-      const selectedContainerIds = [
-        ...toStringArray(req.body?.containers),
-        ...toStringArray(req.body?.["containers[]"]),
-      ]
-        .map((value) => value.trim())
-        .filter(Boolean)
-        .filter((value, index, array) => array.indexOf(value) === index);
+      const selectedContainerIds = getSelectedContainerIdsFromBody(req.body);
 
       if (!selectedContainerIds.length) {
         setFlashSession(res, req, { error: "No containers selected" });

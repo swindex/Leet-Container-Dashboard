@@ -122,7 +122,7 @@ async function execRemoteDockerViaSsh2(
 }
 
 export async function listRunningContainers(server?: DockerTargetServer): Promise<DockerContainer[]> {
-  const out = await execDocker(["ps", "--format", "{{json .}}"], server);
+  const out = await execDocker(["ps", "-a", "--format", "{{json .}}"], server);
   return out
     .split("\n")
     .filter(Boolean)
@@ -135,6 +135,29 @@ export async function restartContainer(containerIdOrName: string, server?: Docke
   }
   await execDocker(["restart", containerIdOrName], server);
 }
+
+export async function startContainer(containerIdOrName: string, server?: DockerTargetServer): Promise<void> {
+  if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
+    throw new Error("Invalid container identifier.");
+  }
+  await execDocker(["start", containerIdOrName], server);
+}
+
+export async function stopContainer(containerIdOrName: string, server?: DockerTargetServer): Promise<void> {
+  if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
+    throw new Error("Invalid container identifier.");
+  }
+  await execDocker(["stop", containerIdOrName], server);
+}
+
+export async function removeContainer(containerIdOrName: string, server?: DockerTargetServer): Promise<void> {
+  if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
+    throw new Error("Invalid container identifier.");
+  }
+  await execDocker(["rm", containerIdOrName], server);
+}
+
+
 
 
 
