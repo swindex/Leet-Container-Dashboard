@@ -936,6 +936,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           appTitle: typeof req.body?.appTitle === "string" ? req.body.appTitle : "",
           appSlogan: typeof req.body?.appSlogan === "string" ? req.body.appSlogan : "",
           theme: resolveDashboardTheme(req.body?.theme),
+          hideAttributionFooter: toBooleanFormValue(req.body?.hideAttributionFooter, false),
           showContainerResources: toBooleanFormValue(req.body?.showContainerResources, true),
           showServerResources: toBooleanFormValue(req.body?.showServerResources, true),
           showImageName: toBooleanFormValue(req.body?.showImageName, true),

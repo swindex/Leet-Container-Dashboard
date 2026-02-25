@@ -1052,6 +1052,7 @@ describe("home server dashboard integration", () => {
         appTitle: "Custom Title",
         appSlogan: "Custom slogan",
         theme: "light",
+        hideAttributionFooter: "on",
         showContainerResources: "on",
         showServerResources: "on",
         showImageName: "on",
@@ -1066,6 +1067,7 @@ describe("home server dashboard integration", () => {
       appSlogan: string;
       theme: string;
       backgroundImagePath: string;
+      hideAttributionFooter: boolean;
       showContainerResources: boolean;
       showServerResources: boolean;
       showImageName: boolean;
@@ -1075,6 +1077,7 @@ describe("home server dashboard integration", () => {
     expect(savedSettings.appTitle).toBe("Custom Title");
     expect(savedSettings.appSlogan).toBe("Custom slogan");
     expect(savedSettings.theme).toBe("light");
+    expect(savedSettings.hideAttributionFooter).toBe(true);
     expect(savedSettings.showContainerResources).toBe(true);
     expect(savedSettings.showServerResources).toBe(true);
     expect(savedSettings.showImageName).toBe(true);
@@ -1142,6 +1145,7 @@ describe("home server dashboard integration", () => {
         appTitle: "Leet Container Dashboard",
         appSlogan: "Monitor and control containers on your network.",
         theme: "dark",
+        hideAttributionFooter: "0",
         showContainerResources: "0",
         showServerResources: "0",
         showImageName: "on",
@@ -1197,6 +1201,7 @@ describe("home server dashboard integration", () => {
         appTitle: "Leet Container Dashboard",
         appSlogan: "Monitor and control containers on your network.",
         theme: "dark",
+        hideAttributionFooter: "0",
         showContainerResources: "on",
         showServerResources: "on",
         showImageName: "0",
@@ -1283,17 +1288,56 @@ describe("home server dashboard integration", () => {
     expect(settingsRes.text).toContain('name="showServerResources"');
     expect(settingsRes.text).toContain('name="showImageName"');
     expect(settingsRes.text).toContain('name="showContainerHash"');
+    expect(settingsRes.text).toContain('name="hideAttributionFooter"');
 
     const savedSettings = JSON.parse(await fs.readFile(dashboardSettingsFilePath, "utf-8")) as {
+      hideAttributionFooter: boolean;
       showContainerResources: boolean;
       showServerResources: boolean;
       showImageName: boolean;
       showContainerHash: boolean;
     };
+    expect(savedSettings.hideAttributionFooter).toBe(false);
     expect(savedSettings.showContainerResources).toBe(true);
     expect(savedSettings.showServerResources).toBe(true);
     expect(savedSettings.showImageName).toBe(true);
     expect(savedSettings.showContainerHash).toBe(true);
+  });
+
+  it("hides attribution footer when setting is enabled", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    const settingsPage = await agent.get("/settings");
+    const csrf = extractCsrfToken(settingsPage.text);
+
+    const saveRes = await agent
+      .post("/settings")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        appTitle: "Leet Container Dashboard",
+        appSlogan: "Monitor and control containers on your network.",
+        theme: "dark",
+        hideAttributionFooter: "on",
+        showContainerResources: "on",
+        showServerResources: "on",
+        showImageName: "on",
+        showContainerHash: "on",
+      });
+
+    expect(saveRes.status).toBe(302);
+
+    const dashboardRes = await agent.get("/");
+    expect(dashboardRes.status).toBe(200);
+    expect(dashboardRes.text).not.toContain("github.com/swindex/Leet-Container-Dashboard");
   });
 
   it("allows admin to upload dashboard background image", async () => {

@@ -138,6 +138,21 @@
             />
             <label for="showContainerHash" class="form-check-label">Show Container Hash</label>
           </div>
+
+          <hr class="my-3" />
+
+          <div class="form-check">
+            <input type="hidden" name="hideAttributionFooter" value="0" />
+            <input
+              id="hideAttributionFooter"
+              name="hideAttributionFooter"
+              type="checkbox"
+              class="form-check-input"
+              value="on"
+              <%= settings.hideAttributionFooter ? 'checked' : '' %>
+            />
+            <label for="hideAttributionFooter" class="form-check-label">Disable attribution footer</label>
+          </div>
         </div>
 
         <div class="mb-3">
@@ -160,6 +175,8 @@
       </form>
     </div>
   </div>
+
+  <%- include('partials/footer') %>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>

@@ -7,6 +7,7 @@ export const DEFAULT_DASHBOARD_SETTINGS = {
   appSlogan: "Monitor and control containers on your network.",
   theme: "dark",
   backgroundImagePath: "",
+  hideAttributionFooter: false,
   showContainerResources: true,
   showServerResources: true,
   showImageName: true,
@@ -20,6 +21,7 @@ export type DashboardSettings = {
   appSlogan: string;
   theme: DashboardTheme;
   backgroundImagePath: string;
+  hideAttributionFooter: boolean;
   showContainerResources: boolean;
   showServerResources: boolean;
   showImageName: boolean;
@@ -81,6 +83,7 @@ function normalizeSettings(input: Partial<DashboardSettings>): DashboardSettings
     appSlogan: (appSlogan || DEFAULT_DASHBOARD_SETTINGS.appSlogan).slice(0, 220),
     theme: toTheme(input.theme),
     backgroundImagePath: toBackgroundImagePath(input.backgroundImagePath),
+    hideAttributionFooter: toBooleanSetting(input.hideAttributionFooter, DEFAULT_DASHBOARD_SETTINGS.hideAttributionFooter),
     showContainerResources: toBooleanSetting(input.showContainerResources, DEFAULT_DASHBOARD_SETTINGS.showContainerResources),
     showServerResources: toBooleanSetting(input.showServerResources, DEFAULT_DASHBOARD_SETTINGS.showServerResources),
     showImageName: toBooleanSetting(input.showImageName, DEFAULT_DASHBOARD_SETTINGS.showImageName),
