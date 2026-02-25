@@ -72,7 +72,14 @@ Key variables:
 - `PORT=3000`
 - `COOKIE_NAME=hsp_session`
 - `COOKIE_SECRET=change-me`
+- `REMOTE_SERVERS_KEY=`
 - `COOKIE_SECURE=false`
+
+
+Production note:
+
+- You **must** set `COOKIE_SECRET` in production. If not set, the app creates an ephemeral value at startup, and every restart invalidates all existing login sessions.
+- You **must** set `REMOTE_SERVERS_KEY` in production. If not set, the app creates an ephemeral encryption key at startup, and encrypted remote server passwords saved during that run cannot be decrypted after restart.
 
 ### Run in development
 

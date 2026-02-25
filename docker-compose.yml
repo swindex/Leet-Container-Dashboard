@@ -10,6 +10,7 @@ services:
       - NODE_ENV=production
       - COOKIE_NAME=hsp_session
       - COOKIE_SECRET=change-this-to-a-long-random-string
+      - REMOTE_SERVERS_KEY=
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
