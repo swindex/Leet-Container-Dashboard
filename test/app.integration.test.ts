@@ -44,6 +44,32 @@ async function readUsersFromFile(usersFilePath: string): Promise<Array<{ id: str
   return parsed.users;
 }
 
+async function readRemoteServersFromFile(remoteServersFilePath: string): Promise<{
+  defaultServerId: string;
+  servers: Array<{
+    id: string;
+    name: string;
+    host: string;
+    username: string;
+    password: string;
+    enabled: boolean;
+    isLocal: boolean;
+  }>;
+}> {
+  return JSON.parse(await fs.readFile(remoteServersFilePath, "utf-8")) as {
+    defaultServerId: string;
+    servers: Array<{
+      id: string;
+      name: string;
+      host: string;
+      username: string;
+      password: string;
+      enabled: boolean;
+      isLocal: boolean;
+    }>;
+  };
+}
+
 describe("home server dashboard integration", () => {
   let usersFilePath = "";
   let remoteServersFilePath = "";
@@ -1389,6 +1415,93 @@ describe("home server dashboard integration", () => {
 
     users = await readUsersFromFile(usersFilePath);
     expect(users.find((u) => u.id === createdUser!.id)).toBeUndefined();
+  });
+
+  it("allows admin to edit/delete local server and add it back with defaults", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    const serversPage = await agent.get("/servers");
+    expect(serversPage.status).toBe(200);
+    expect(serversPage.text).toContain("Server Management");
+    expect(serversPage.text).toContain("Add Remote Server");
+    expect(serversPage.text).not.toContain("Add Local Server");
+
+    const csrf = extractCsrfToken(serversPage.text);
+
+    const updateLocalRes = await agent
+      .post("/servers/local/update")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        name: "Edited Local",
+        host: "127.0.0.1",
+        username: "",
+        password: "",
+        enabled: "on",
+      });
+
+    expect(updateLocalRes.status).toBe(302);
+    expect(updateLocalRes.headers.location).toBe("/servers");
+
+    let remoteServers = await readRemoteServersFromFile(remoteServersFilePath);
+    expect(remoteServers.servers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "local",
+          name: "Edited Local",
+          host: "127.0.0.1",
+          isLocal: true,
+          enabled: true,
+        }),
+      ])
+    );
+
+    const deleteLocalRes = await agent
+      .post("/servers/local/delete")
+      .type("form")
+      .send({ _csrf: csrf });
+
+    expect(deleteLocalRes.status).toBe(302);
+    expect(deleteLocalRes.headers.location).toBe("/servers");
+
+    remoteServers = await readRemoteServersFromFile(remoteServersFilePath);
+    expect(remoteServers.servers.find((server) => server.id === "local")).toBeUndefined();
+
+    const noLocalServersPage = await agent.get("/servers");
+    expect(noLocalServersPage.status).toBe(200);
+    expect(noLocalServersPage.text).toContain("Add Local Server");
+
+    const csrfWithoutLocal = extractCsrfToken(noLocalServersPage.text);
+    const addLocalRes = await agent
+      .post("/servers/local/add")
+      .type("form")
+      .send({ _csrf: csrfWithoutLocal });
+
+    expect(addLocalRes.status).toBe(302);
+    expect(addLocalRes.headers.location).toBe("/servers");
+
+    remoteServers = await readRemoteServersFromFile(remoteServersFilePath);
+    expect(remoteServers.servers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "local",
+          name: "Local Server",
+          host: "localhost",
+          username: "",
+          enabled: true,
+          isLocal: true,
+        }),
+      ])
+    );
   });
 
   it("blocks admin self-disable and self-delete", async () => {

@@ -38,6 +38,7 @@ import {
 import { PERMISSIONS, ROLES, type Role } from "./lib/rbac.js";
 import { restartHost } from "./lib/systemCli.js";
 import {
+  addDefaultLocalServer,
   createRemoteServer,
   deleteRemoteServer,
   getRemoteServerById,
@@ -988,6 +989,23 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
   );
 
   app.post(
+    "/servers/local/add",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.SERVERS_MANAGE),
+    async (req, res) => {
+      try {
+        await addDefaultLocalServer();
+        setFlashSession(res, req, { notice: "Local server added successfully" });
+        res.redirect("/servers");
+      } catch (error) {
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to add local server" });
+        res.redirect("/servers");
+      }
+    }
+  );
+
+  app.post(
     "/servers/:serverId/update",
     requireAuth,
     ensureCsrf,
@@ -1002,8 +1020,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           enabled: toBooleanFormValue(req.body?.enabled),
         });
 
-        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
-        setActiveServerSession(res, req, server.id);
+        const { servers } = await listRemoteServers();
+        if (servers.length) {
+          const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+          setActiveServerSession(res, req, server.id);
+        }
         setFlashSession(res, req, { notice: "Server updated successfully" });
         res.redirect("/servers");
       } catch (error) {
@@ -1021,8 +1042,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     async (req, res) => {
       try {
         await deleteRemoteServer(req.params.serverId);
-        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
-        setActiveServerSession(res, req, server.id);
+        const { servers } = await listRemoteServers();
+        if (servers.length) {
+          const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+          setActiveServerSession(res, req, server.id);
+        }
         setFlashSession(res, req, { notice: "Server removed successfully" });
         res.redirect("/servers");
       } catch (error) {

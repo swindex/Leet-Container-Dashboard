@@ -49,6 +49,7 @@
     <div class="row g-3">
       <div class="col-12">
         <div class="panel">
+          <% const hasLocalServer = servers.some((server) => server.isLocal || server.id === 'local'); %>
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h4 mb-0"><i class="fa-solid fa-server me-2"></i>Configured Servers</h2>
             <span class="text-muted"><%= servers.length %> total</span>
@@ -90,8 +91,8 @@
                     </td>
                     <td class="text-end">
                       <% if (server.isLocal) { %>
-                        <span class="badge text-bg-info">Built-in Local</span>
-                      <% } else { %>
+                        <span class="badge text-bg-info me-1">Local</span>
+                      <% } %>
                         <button
                           type="button"
                           class="btn btn-sm btn-hs-secondary"
@@ -111,7 +112,6 @@
                             <i class="fa-solid fa-trash me-1"></i>Delete
                           </button>
                         </form>
-                      <% } %>
                     </td>
                   </tr>
                 <% }) %>
@@ -123,6 +123,14 @@
             <button type="button" class="btn btn-hs-primary" data-bs-toggle="modal" data-bs-target="#add-server-modal">
               <i class="fa-solid fa-plus me-2"></i>Add Remote Server
             </button>
+            <% if (!hasLocalServer) { %>
+              <form action="/servers/local/add" method="post" class="d-inline ms-2">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button type="submit" class="btn btn-hs-secondary">
+                  <i class="fa-solid fa-house-signal me-2"></i>Add Local Server
+                </button>
+              </form>
+            <% } %>
           </div>
         </div>
       </div>
@@ -177,7 +185,6 @@
   </div>
 
   <% servers.forEach((server) => { %>
-    <% if (!server.isLocal) { %>
       <div class="modal fade" id="edit-server-modal-<%= server.id %>" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
           <div class="modal-content">
@@ -201,7 +208,7 @@
 
                 <div class="mb-3">
                   <label for="edit-username-<%= server.id %>" class="form-label">Username</label>
-                  <input id="edit-username-<%= server.id %>" name="username" class="form-control hs-input" value="<%= server.username %>" required maxlength="100" />
+                  <input id="edit-username-<%= server.id %>" name="username" class="form-control hs-input" value="<%= server.username %>" <%= server.isLocal ? '' : 'required' %> maxlength="100" />
                 </div>
 
                 <div class="mb-3">
@@ -224,7 +231,6 @@
           </div>
         </div>
       </div>
-    <% } %>
   <% }) %>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

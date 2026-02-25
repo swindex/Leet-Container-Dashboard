@@ -38,6 +38,19 @@ function createDefaultLocalServer(): RemoteServer {
   };
 }
 
+function resolveDefaultServerId(servers: RemoteServer[], requestedDefaultServerId?: string): string {
+  if (!servers.length) {
+    return LOCAL_SERVER_ID;
+  }
+
+  if (requestedDefaultServerId && servers.some((server) => server.id === requestedDefaultServerId)) {
+    return requestedDefaultServerId;
+  }
+
+  const firstEnabled = servers.find((server) => server.enabled);
+  return firstEnabled?.id ?? servers[0].id;
+}
+
 function normalizeServer(input: Partial<RemoteServer>, fallback?: RemoteServer): RemoteServer {
   const base = fallback ?? createDefaultLocalServer();
   return {
@@ -55,22 +68,21 @@ function validateRemoteServersFile(input: unknown): RemoteServersFile {
   const parsed = input as Partial<RemoteServersFile>;
   const inputServers = Array.isArray(parsed?.servers) ? parsed.servers : [];
 
-  const normalized = inputServers.map((server, idx) => {
-    const fallback = idx === 0 ? createDefaultLocalServer() : undefined;
-    return normalizeServer(server as Partial<RemoteServer>, fallback);
+  const servers = inputServers.map((server) => {
+    const normalized = normalizeServer(server as Partial<RemoteServer>);
+    if (normalized.id === LOCAL_SERVER_ID || normalized.isLocal) {
+      return {
+        ...normalized,
+        id: LOCAL_SERVER_ID,
+        isLocal: true,
+      };
+    }
+
+    return {
+      ...normalized,
+      isLocal: false,
+    };
   });
-
-  const localCandidate = normalized.find((server) => server.id === LOCAL_SERVER_ID || server.isLocal) ?? {};
-  const localServer = normalizeServer(localCandidate, createDefaultLocalServer());
-  localServer.id = LOCAL_SERVER_ID;
-  localServer.isLocal = true;
-  localServer.enabled = true;
-
-  const remoteServers = normalized
-    .filter((server) => server.id !== LOCAL_SERVER_ID && !server.isLocal)
-    .map((server) => ({ ...server, isLocal: false }));
-
-  const servers = [localServer, ...remoteServers];
 
   const ids = new Set<string>();
   for (const server of servers) {
@@ -80,10 +92,10 @@ function validateRemoteServersFile(input: unknown): RemoteServersFile {
     ids.add(server.id);
   }
 
-  const defaultServerId =
-    typeof parsed?.defaultServerId === "string" && ids.has(parsed.defaultServerId)
-      ? parsed.defaultServerId
-      : LOCAL_SERVER_ID;
+  const requestedDefaultServerId = typeof parsed?.defaultServerId === "string"
+    ? parsed.defaultServerId
+    : undefined;
+  const defaultServerId = resolveDefaultServerId(servers, requestedDefaultServerId);
 
   return {
     defaultServerId,
@@ -131,6 +143,10 @@ export async function getRemoteServerById(serverId: string): Promise<RemoteServe
 
 export async function resolveServerByIdOrDefault(serverId?: string): Promise<{ server: RemoteServer; defaultServerId: string }> {
   const { defaultServerId, servers } = await listRemoteServers();
+  if (!servers.length) {
+    throw new Error("No servers configured");
+  }
+
   const enabledServers = servers.filter((server) => server.enabled);
   const fallbackServer = enabledServers.find((server) => server.id === defaultServerId) ?? servers[0];
 
@@ -209,15 +225,15 @@ export async function updateRemoteServer(
   if (!target) {
     throw new Error("Server not found");
   }
-  if (target.isLocal) {
-    throw new Error("Local server cannot be edited");
-  }
 
   const name = input.name.trim();
   const host = input.host.trim();
   const username = input.username.trim();
 
-  if (!name || !host || !username) {
+  if (!name || !host) {
+    throw new Error("Name and host are required");
+  }
+  if (!target.isLocal && !username) {
     throw new Error("Name, host, and username are required");
   }
 
@@ -242,14 +258,21 @@ export async function deleteRemoteServer(serverId: string): Promise<void> {
   if (!target) {
     throw new Error("Server not found");
   }
-  if (target.isLocal) {
-    throw new Error("Local server cannot be deleted");
-  }
 
   file.servers = file.servers.filter((server) => server.id !== serverId);
-  if (file.defaultServerId === serverId) {
-    file.defaultServerId = LOCAL_SERVER_ID;
+  file.defaultServerId = resolveDefaultServerId(file.servers, file.defaultServerId === serverId ? undefined : file.defaultServerId);
+
+  await writeRemoteServersFile(file);
+}
+
+export async function addDefaultLocalServer(): Promise<void> {
+  const file = await readRemoteServersFile();
+  if (file.servers.some((server) => server.id === LOCAL_SERVER_ID || server.isLocal)) {
+    throw new Error("Local server already exists");
   }
+
+  file.servers.unshift(createDefaultLocalServer());
+  file.defaultServerId = resolveDefaultServerId(file.servers, file.defaultServerId);
 
   await writeRemoteServersFile(file);
 }
