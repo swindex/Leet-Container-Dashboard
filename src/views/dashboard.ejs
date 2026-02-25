@@ -60,6 +60,7 @@
     <% const groupColumnsSpan = containerColumnsCount - 1; %>
     <% const resourceMobileColspan = containerColumnsCount - 1; %>
 
+    <% const unavailableIds = new Set((unavailableServerIds || []).map(id => String(id))); %>
     <div class="panel mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h2 class="h5 mb-0"><i class="fa-solid fa-server me-2"></i>Servers</h2>
@@ -67,7 +68,8 @@
       </div>
       <div class="server-band">
         <% servers.forEach((server) => { %>
-          <div class="server-pill <%= server.id === activeServerId ? 'server-pill-active' : '' %> <%= !server.enabled ? 'server-pill-disabled' : '' %>">
+          <% const isUnavailable = unavailableIds.has(server.id); %>
+          <div class="server-pill <%= server.id === activeServerId ? 'server-pill-active' : '' %> <%= (!server.enabled || isUnavailable) ? 'server-pill-disabled' : '' %>">
             <div class="d-flex align-items-center gap-2">
               <i class="fa-solid fa-server"></i>
               <div>
@@ -79,6 +81,9 @@
             <div class="d-flex align-items-center gap-2">
               <% if (server.id === defaultServerId) { %>
                 <span class="badge text-bg-warning"><i class="fa-solid fa-star me-1"></i>Default</span>
+              <% } %>
+              <% if (isUnavailable) { %>
+                <span class="badge text-bg-danger">[unavialable]</span>
               <% } %>
               <% if (server.id === activeServerId) { %>
                 <span class="badge text-bg-success">Active</span>

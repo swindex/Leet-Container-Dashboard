@@ -611,14 +611,39 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     try {
       const { servers, defaultServerId } = await listRemoteServers();
       const selectedFromSession = getActiveServerSessionId(req);
-      const { server: activeServer } = await resolveServerByIdOrDefault(selectedFromSession);
-      setActiveServerSession(res, req, activeServer.id);
+      const { server: initiallyResolvedServer } = await resolveServerByIdOrDefault(selectedFromSession);
+      const localServer = servers.find((server) => server.id === "local") ?? servers[0];
+      let activeServer = initiallyResolvedServer;
+      let unavailableServerIds: string[] = [];
+      let fallbackError = "";
+      let containers: DockerContainer[] = [];
+      let statsResult: PromiseSettledResult<DockerContainerStat[]> = { status: "fulfilled", value: [] };
+      let hostInfoResult: PromiseSettledResult<DockerHostInfo | null> = { status: "fulfilled", value: null };
 
-      const containers = await deps.listContainers(activeServer);
-      const [statsResult, hostInfoResult] = await Promise.allSettled([
-        deps.listContainerStats(activeServer),
-        deps.getHostInfo(activeServer),
-      ]);
+      try {
+        containers = await deps.listContainers(activeServer);
+        [statsResult, hostInfoResult] = await Promise.allSettled([
+          deps.listContainerStats(activeServer),
+          deps.getHostInfo(activeServer),
+        ]);
+      } catch (primaryError) {
+        if (activeServer.isLocal || !localServer || activeServer.id === localServer.id) {
+          throw primaryError;
+        }
+
+        unavailableServerIds = [activeServer.id];
+        const failedServerName = activeServer.name || activeServer.host || activeServer.id;
+        activeServer = localServer;
+        fallbackError = `Failed to connect to ${failedServerName}. Marked as [unavialable] and switched to local server.`;
+
+        containers = await deps.listContainers(activeServer);
+        [statsResult, hostInfoResult] = await Promise.allSettled([
+          deps.listContainerStats(activeServer),
+          deps.getHostInfo(activeServer),
+        ]);
+      }
+
+      setActiveServerSession(res, req, activeServer.id);
 
       const metricsWarning = (statsResult.status === "rejected" || hostInfoResult.status === "rejected")
         ? "Resource metrics are temporarily unavailable for this server."
@@ -631,6 +656,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       const serverMetrics = buildServerMetrics(hostInfo, containerStats, metricsWarning);
       const can = getPermissionFlags(req.user);
       const { notice, error } = consumeFlashSession(res, req);
+      const combinedError = [fallbackError, error].filter(Boolean).join(" ");
 
       res.render("dashboard", {
         user: req.user,
@@ -641,10 +667,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         metricsWarning,
         csrfToken: req.csrfToken,
         notice,
-        error,
+        error: combinedError,
         servers,
         activeServerId: activeServer.id,
         defaultServerId,
+        unavailableServerIds,
       });
     } catch (e) {
       const error = e as Error;
@@ -661,6 +688,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         servers: [],
         activeServerId: "",
         defaultServerId: "local",
+        unavailableServerIds: [],
       });
     }
   });

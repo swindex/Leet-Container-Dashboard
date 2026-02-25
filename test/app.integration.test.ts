@@ -46,10 +46,12 @@ async function readUsersFromFile(usersFilePath: string): Promise<Array<{ id: str
 
 describe("home server dashboard integration", () => {
   let usersFilePath = "";
+  let remoteServersFilePath = "";
   let dashboardSettingsFilePath = "";
   let dashboardUploadsDir = "";
   let restoreUsersFileContent: string | null = null;
   let usersFileExisted = false;
+  let restoreRemoteServersFile: string | undefined;
   let restoreDashboardSettingsFile: string | undefined;
   let restoreDashboardUploadsDir: string | undefined;
   let restoreCookieSecret: string | undefined;
@@ -63,6 +65,7 @@ describe("home server dashboard integration", () => {
   const restartHostMock = vi.fn(async () => undefined);
 
   beforeAll(async () => {
+    restoreRemoteServersFile = process.env.REMOTE_SERVERS_FILE;
     restoreDashboardSettingsFile = process.env.DASHBOARD_SETTINGS_FILE;
     restoreDashboardUploadsDir = process.env.DASHBOARD_UPLOADS_DIR;
     restoreCookieSecret = process.env.COOKIE_SECRET;
@@ -111,6 +114,7 @@ describe("home server dashboard integration", () => {
     ];
 
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "home-server-tests-"));
+    remoteServersFilePath = path.join(tempDir, "remoteServers.json");
     dashboardSettingsFilePath = path.join(tempDir, "dashboardSettings.json");
     dashboardUploadsDir = path.join(tempDir, "uploads", "backgrounds");
 
@@ -126,12 +130,36 @@ describe("home server dashboard integration", () => {
       "utf-8"
     );
 
+    await fs.writeFile(
+      remoteServersFilePath,
+      JSON.stringify(
+        {
+          defaultServerId: "local",
+          servers: [
+            {
+              id: "local",
+              name: "Local Server",
+              host: "localhost",
+              username: "",
+              password: "",
+              enabled: true,
+              isLocal: true,
+            },
+          ],
+        },
+        null,
+        2
+      ),
+      "utf-8"
+    );
+
+    process.env.REMOTE_SERVERS_FILE = remoteServersFilePath;
     process.env.DASHBOARD_SETTINGS_FILE = dashboardSettingsFilePath;
     process.env.DASHBOARD_UPLOADS_DIR = dashboardUploadsDir;
     process.env.COOKIE_SECRET = "integration-test-secret";
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     restartContainerMock.mockClear();
     removeContainerMock.mockClear();
     startContainerMock.mockClear();
@@ -139,9 +167,38 @@ describe("home server dashboard integration", () => {
     listContainerStatsMock.mockClear();
     getHostInfoMock.mockClear();
     restartHostMock.mockClear();
+
+    await fs.writeFile(
+      remoteServersFilePath,
+      JSON.stringify(
+        {
+          defaultServerId: "local",
+          servers: [
+            {
+              id: "local",
+              name: "Local Server",
+              host: "localhost",
+              username: "",
+              password: "",
+              enabled: true,
+              isLocal: true,
+            },
+          ],
+        },
+        null,
+        2
+      ),
+      "utf-8"
+    );
   });
 
   afterAll(async () => {
+    if (restoreRemoteServersFile === undefined) {
+      delete process.env.REMOTE_SERVERS_FILE;
+    } else {
+      process.env.REMOTE_SERVERS_FILE = restoreRemoteServersFile;
+    }
+
     if (restoreDashboardSettingsFile === undefined) {
       delete process.env.DASHBOARD_SETTINGS_FILE;
     } else {
@@ -651,6 +708,82 @@ describe("home server dashboard integration", () => {
     expect(dashboardRes.text).toContain("<strong>Memory</strong> -");
     expect(dashboardRes.text).toContain("<strong>Net</strong> -");
     expect(dashboardRes.text).toContain("<strong>Disk</strong> -");
+  });
+
+  it("falls back to local server and marks failed remote as [unavialable]", async () => {
+    await fs.writeFile(
+      remoteServersFilePath,
+      JSON.stringify(
+        {
+          defaultServerId: "remote-1",
+          servers: [
+            {
+              id: "local",
+              name: "Local Server",
+              host: "localhost",
+              username: "",
+              password: "",
+              enabled: true,
+              isLocal: true,
+            },
+            {
+              id: "remote-1",
+              name: "Remote Prod",
+              host: "10.10.10.10",
+              username: "root",
+              password: "secret",
+              enabled: true,
+              isLocal: false,
+            },
+          ],
+        },
+        null,
+        2
+      ),
+      "utf-8"
+    );
+
+    const app = createApp({
+      listContainers: async (server) => {
+        if (!server?.isLocal) {
+          throw new Error("connect ETIMEDOUT");
+        }
+
+        return [
+          {
+            ID: "local111",
+            Names: "local-api",
+            Image: "repo/local-api:latest",
+            Status: "Up 1 minute",
+            Command: "",
+            CreatedAt: "",
+            Labels: "",
+            LocalVolumes: "",
+            Mounts: "",
+            Networks: "",
+            Ports: "",
+            RunningFor: "",
+            Size: "",
+            State: "running",
+          },
+        ];
+      },
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    expect(dashboardRes.text).toContain("Failed to connect to Remote Prod. Marked as [unavialable] and switched to local server.");
+    expect(dashboardRes.text).toContain("Remote Prod");
+    expect(dashboardRes.text).toContain("[unavialable]");
+    expect(dashboardRes.text).toContain("local-api");
+    expect(dashboardRes.text).toContain("Active</span>");
   });
 
   it("shows stopped status label for exited containers instead of exit code", async () => {
