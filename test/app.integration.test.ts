@@ -885,6 +885,10 @@ describe("home server dashboard integration", () => {
         appTitle: "Custom Title",
         appSlogan: "Custom slogan",
         theme: "light",
+        showContainerResources: "on",
+        showServerResources: "on",
+        showImageName: "on",
+        showContainerHash: "on",
       });
 
     expect(saveRes.status).toBe(302);
@@ -895,16 +899,234 @@ describe("home server dashboard integration", () => {
       appSlogan: string;
       theme: string;
       backgroundImagePath: string;
+      showContainerResources: boolean;
+      showServerResources: boolean;
+      showImageName: boolean;
+      showContainerHash: boolean;
     };
 
     expect(savedSettings.appTitle).toBe("Custom Title");
     expect(savedSettings.appSlogan).toBe("Custom slogan");
     expect(savedSettings.theme).toBe("light");
+    expect(savedSettings.showContainerResources).toBe(true);
+    expect(savedSettings.showServerResources).toBe(true);
+    expect(savedSettings.showImageName).toBe(true);
+    expect(savedSettings.showContainerHash).toBe(true);
 
     const dashboardRes = await agent.get("/");
     expect(dashboardRes.status).toBe(200);
     expect(dashboardRes.text).toContain("Custom Title");
     expect(dashboardRes.text).toContain("Custom slogan");
+  });
+
+  it("hides server and container resources when both toggles are disabled", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "hide111",
+          Names: "hidden-metrics-api",
+          Image: "repo/hidden-metrics-api:latest",
+          Status: "Up 2 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      listContainerStats: async () => [
+        {
+          BlockIO: "1MB / 1MB",
+          CPUPerc: "7.00%",
+          Container: "hide111",
+          ID: "hide111",
+          MemPerc: "2.0%",
+          MemUsage: "64MiB / 2GiB",
+          Name: "hidden-metrics-api",
+          NetIO: "2MB / 1MB",
+          PIDs: "7",
+        },
+      ],
+      getHostInfo: async () => ({
+        NCPU: 16,
+        MemTotal: 16 * 1024 * 1024 * 1024,
+      }),
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    const settingsPage = await agent.get("/settings");
+    const csrf = extractCsrfToken(settingsPage.text);
+
+    const saveRes = await agent
+      .post("/settings")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        appTitle: "Leet Container Dashboard",
+        appSlogan: "Monitor and control containers on your network.",
+        theme: "dark",
+        showContainerResources: "0",
+        showServerResources: "0",
+        showImageName: "on",
+        showContainerHash: "on",
+      });
+
+    expect(saveRes.status).toBe(302);
+
+    const dashboardRes = await agent.get("/");
+    expect(dashboardRes.status).toBe(200);
+    expect(dashboardRes.text).toContain("hidden-metrics-api");
+    expect(dashboardRes.text).not.toContain("Resource Consumption");
+    expect(dashboardRes.text).not.toContain("<th class=\"resource-desktop-col\">Resources</th>");
+    expect(dashboardRes.text).not.toContain("<strong>CPU</strong>");
+  });
+
+  it("hides image name and container hash when both toggles are disabled", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "imgname111222333",
+          Names: "hidden-image-and-hash",
+          Image: "repo/hidden-image-and-hash:latest",
+          Status: "Up 2 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    const settingsPage = await agent.get("/settings");
+    const csrf = extractCsrfToken(settingsPage.text);
+
+    const saveRes = await agent
+      .post("/settings")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        appTitle: "Leet Container Dashboard",
+        appSlogan: "Monitor and control containers on your network.",
+        theme: "dark",
+        showContainerResources: "on",
+        showServerResources: "on",
+        showImageName: "0",
+        showContainerHash: "0",
+      });
+
+    expect(saveRes.status).toBe(302);
+
+    const dashboardRes = await agent.get("/");
+    expect(dashboardRes.status).toBe(200);
+    expect(dashboardRes.text).toContain("hidden-image-and-hash");
+    expect(dashboardRes.text).not.toContain("<th class=\"image-col\">Image</th>");
+    expect(dashboardRes.text).not.toContain("repo/hidden-image-and-hash:latest");
+    expect(dashboardRes.text).not.toContain("imgname111222");
+  });
+
+  it("defaults resource visibility toggles to true for legacy settings files", async () => {
+    await fs.writeFile(
+      dashboardSettingsFilePath,
+      JSON.stringify(
+        {
+          appTitle: "Legacy Title",
+          appSlogan: "Legacy slogan",
+          theme: "dark",
+          backgroundImagePath: "",
+        },
+        null,
+        2
+      ),
+      "utf-8"
+    );
+
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "legacy111",
+          Names: "legacy-api",
+          Image: "repo/legacy-api:latest",
+          Status: "Up 1 minute",
+          Command: "",
+          CreatedAt: "",
+          Labels: "",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      listContainerStats: async () => [
+        {
+          BlockIO: "512kB / 512kB",
+          CPUPerc: "1.50%",
+          Container: "legacy111",
+          ID: "legacy111",
+          MemPerc: "1.0%",
+          MemUsage: "32MiB / 2GiB",
+          Name: "legacy-api",
+          NetIO: "1MB / 512kB",
+          PIDs: "6",
+        },
+      ],
+      getHostInfo: async () => ({
+        NCPU: 4,
+        MemTotal: 4 * 1024 * 1024 * 1024,
+      }),
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    expect(dashboardRes.text).toContain("Resource Consumption");
+    expect(dashboardRes.text).toContain("<th class=\"resource-desktop-col\">Resources</th>");
+
+    const settingsRes = await agent.get("/settings");
+    expect(settingsRes.status).toBe(200);
+    expect(settingsRes.text).toContain('id="showContainerResources"');
+    expect(settingsRes.text).toContain('name="showContainerResources"');
+    expect(settingsRes.text).toContain('name="showServerResources"');
+    expect(settingsRes.text).toContain('name="showImageName"');
+    expect(settingsRes.text).toContain('name="showContainerHash"');
+
+    const savedSettings = JSON.parse(await fs.readFile(dashboardSettingsFilePath, "utf-8")) as {
+      showContainerResources: boolean;
+      showServerResources: boolean;
+      showImageName: boolean;
+      showContainerHash: boolean;
+    };
+    expect(savedSettings.showContainerResources).toBe(true);
+    expect(savedSettings.showServerResources).toBe(true);
+    expect(savedSettings.showImageName).toBe(true);
+    expect(savedSettings.showContainerHash).toBe(true);
   });
 
   it("allows admin to upload dashboard background image", async () => {

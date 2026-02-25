@@ -6,6 +6,10 @@ export const DEFAULT_DASHBOARD_SETTINGS = {
   appSlogan: "Monitor and control containers on your network.",
   theme: "dark",
   backgroundImagePath: "",
+  showContainerResources: true,
+  showServerResources: true,
+  showImageName: true,
+  showContainerHash: true,
 } as const;
 
 export type DashboardTheme = "light" | "dark";
@@ -15,6 +19,10 @@ export type DashboardSettings = {
   appSlogan: string;
   theme: DashboardTheme;
   backgroundImagePath: string;
+  showContainerResources: boolean;
+  showServerResources: boolean;
+  showImageName: boolean;
+  showContainerHash: boolean;
 };
 
 const DEFAULT_DASHBOARD_SETTINGS_PATH = path.resolve(process.cwd(), "data", "dashboardSettings.json");
@@ -45,6 +53,24 @@ function toBackgroundImagePath(value: unknown): string {
   return normalized;
 }
 
+function toBooleanSetting(value: unknown, fallback = true): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["false", "0", "no", "off"].includes(normalized)) {
+      return false;
+    }
+  }
+
+  return fallback;
+}
+
 function normalizeSettings(input: Partial<DashboardSettings>): DashboardSettings {
   const appTitle = typeof input.appTitle === "string" ? input.appTitle.trim() : "";
   const appSlogan = typeof input.appSlogan === "string" ? input.appSlogan.trim() : "";
@@ -54,6 +80,10 @@ function normalizeSettings(input: Partial<DashboardSettings>): DashboardSettings
     appSlogan: (appSlogan || DEFAULT_DASHBOARD_SETTINGS.appSlogan).slice(0, 220),
     theme: toTheme(input.theme),
     backgroundImagePath: toBackgroundImagePath(input.backgroundImagePath),
+    showContainerResources: toBooleanSetting(input.showContainerResources, DEFAULT_DASHBOARD_SETTINGS.showContainerResources),
+    showServerResources: toBooleanSetting(input.showServerResources, DEFAULT_DASHBOARD_SETTINGS.showServerResources),
+    showImageName: toBooleanSetting(input.showImageName, DEFAULT_DASHBOARD_SETTINGS.showImageName),
+    showContainerHash: toBooleanSetting(input.showContainerHash, DEFAULT_DASHBOARD_SETTINGS.showContainerHash),
   };
 }
 

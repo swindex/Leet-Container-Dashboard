@@ -301,8 +301,16 @@ function buildServerMetrics(hostInfo: DockerHostInfo | null, stats: DockerContai
   };
 }
 
-function toBooleanFormValue(value: unknown): boolean {
-  return value === "true" || value === "on" || value === "1";
+function toBooleanFormValue(value: unknown, defaultValue = false): boolean {
+  if (Array.isArray(value)) {
+    return value.some((item) => toBooleanFormValue(item, false));
+  }
+
+  if (value === undefined || value === null || value === "") {
+    return defaultValue;
+  }
+
+  return value === true || value === "true" || value === "on" || value === "1";
 }
 
 function toStringArray(value: unknown): string[] {
@@ -867,6 +875,10 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           appTitle: typeof req.body?.appTitle === "string" ? req.body.appTitle : "",
           appSlogan: typeof req.body?.appSlogan === "string" ? req.body.appSlogan : "",
           theme: resolveDashboardTheme(req.body?.theme),
+          showContainerResources: toBooleanFormValue(req.body?.showContainerResources, true),
+          showServerResources: toBooleanFormValue(req.body?.showServerResources, true),
+          showImageName: toBooleanFormValue(req.body?.showImageName, true),
+          showContainerHash: toBooleanFormValue(req.body?.showContainerHash, true),
         };
 
         if (req.file) {

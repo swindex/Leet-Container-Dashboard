@@ -85,6 +85,62 @@
         </div>
 
         <div class="mb-3">
+          <label class="form-label d-block">Resource Visibility</label>
+          <div class="form-check mb-2">
+            <input type="hidden" name="showContainerResources" value="0" />
+            <input
+              id="showContainerResources"
+              name="showContainerResources"
+              type="checkbox"
+              class="form-check-input"
+              value="on"
+              <%= settings.showContainerResources ? 'checked' : '' %>
+            />
+            <label for="showContainerResources" class="form-check-label">Show Container Resources</label>
+          </div>
+          <div class="form-check">
+            <input type="hidden" name="showServerResources" value="0" />
+            <input
+              id="showServerResources"
+              name="showServerResources"
+              type="checkbox"
+              class="form-check-input"
+              value="on"
+              <%= settings.showServerResources ? 'checked' : '' %>
+            />
+            <label for="showServerResources" class="form-check-label">Show Server Resources</label>
+          </div>
+
+          <hr class="my-3" />
+
+          <div class="form-check mb-2">
+            <input type="hidden" name="showImageName" value="0" />
+            <input
+              id="showImageName"
+              name="showImageName"
+              type="checkbox"
+              class="form-check-input"
+              value="on"
+              <%= settings.showImageName !== false ? 'checked' : '' %>
+            />
+            <label for="showImageName" class="form-check-label">Show Image Name</label>
+          </div>
+
+          <div class="form-check">
+            <input type="hidden" name="showContainerHash" value="0" />
+            <input
+              id="showContainerHash"
+              name="showContainerHash"
+              type="checkbox"
+              class="form-check-input"
+              value="on"
+              <%= settings.showContainerHash !== false ? 'checked' : '' %>
+            />
+            <label for="showContainerHash" class="form-check-label">Show Container Hash</label>
+          </div>
+        </div>
+
+        <div class="mb-3">
           <label for="backgroundImage" class="form-label">Background Image Upload</label>
           <input
             id="backgroundImage"

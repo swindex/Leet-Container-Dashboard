@@ -52,6 +52,14 @@
       <div class="alert alert-danger hs-flash-alert" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
     <% } %>
 
+    <% const showContainerResources = dashboardSettings.showContainerResources !== false; %>
+    <% const showServerResources = dashboardSettings.showServerResources !== false; %>
+    <% const showImageName = dashboardSettings.showImageName !== false; %>
+    <% const showContainerHash = dashboardSettings.showContainerHash !== false; %>
+    <% const containerColumnsCount = 4 + (showImageName ? 1 : 0) + (showContainerResources ? 1 : 0); %>
+    <% const groupColumnsSpan = containerColumnsCount - 1; %>
+    <% const resourceMobileColspan = containerColumnsCount - 1; %>
+
     <div class="panel mb-3">
       <div class="d-flex justify-content-between align-items-center mb-2">
         <h2 class="h5 mb-0"><i class="fa-solid fa-server me-2"></i>Servers</h2>
@@ -89,42 +97,44 @@
       </div>
     </div>
 
-    <div class="panel mb-3">
-      <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-        <h2 class="h5 mb-0"><i class="fa-solid fa-microchip me-2"></i>Resource Consumption</h2>
-        <small class="text-muted">Current snapshot from Docker</small>
+    <% if (showServerResources) { %>
+      <div class="panel mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <h2 class="h5 mb-0"><i class="fa-solid fa-microchip me-2"></i>Resource Consumption</h2>
+          <small class="text-muted">Current snapshot from Docker</small>
+        </div>
+        <% if (metricsWarning) { %>
+          <div class="alert alert-warning py-2 mb-2" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= metricsWarning %></div>
+        <% } %>
+        <div class="row g-2 small">
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">CPU Cores</div>
+              <div class="fw-semibold"><%= serverMetrics.cpuCores %></div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">Total Memory</div>
+              <div class="fw-semibold"><%= serverMetrics.totalMemory %></div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">Container Memory Used</div>
+              <div class="fw-semibold"><%= serverMetrics.usedMemory %></div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">Memory Utilization</div>
+              <div class="fw-semibold"><%= serverMetrics.memoryUtilization %></div>
+              <small class="text-muted"><%= serverMetrics.monitoredContainers %> monitored container<%= serverMetrics.monitoredContainers === 1 ? '' : 's' %></small>
+            </div>
+          </div>
+        </div>
       </div>
-      <% if (metricsWarning) { %>
-        <div class="alert alert-warning py-2 mb-2" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= metricsWarning %></div>
-      <% } %>
-      <div class="row g-2 small">
-        <div class="col-6 col-md-3">
-          <div class="border rounded p-2 h-100">
-            <div class="text-muted">CPU Cores</div>
-            <div class="fw-semibold"><%= serverMetrics.cpuCores %></div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="border rounded p-2 h-100">
-            <div class="text-muted">Total Memory</div>
-            <div class="fw-semibold"><%= serverMetrics.totalMemory %></div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="border rounded p-2 h-100">
-            <div class="text-muted">Container Memory Used</div>
-            <div class="fw-semibold"><%= serverMetrics.usedMemory %></div>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="border rounded p-2 h-100">
-            <div class="text-muted">Memory Utilization</div>
-            <div class="fw-semibold"><%= serverMetrics.memoryUtilization %></div>
-            <small class="text-muted"><%= serverMetrics.monitoredContainers %> monitored container<%= serverMetrics.monitoredContainers === 1 ? '' : 's' %></small>
-          </div>
-        </div>
-      </div>
-    </div>
+    <% } %>
 
     <div class="row g-3">
       <div class="col-12 col-xl-9">
@@ -232,16 +242,20 @@
                     />
                   </th>
                   <th>Name</th>
-                  <th class="image-col">Image</th>
+                  <% if (showImageName) { %>
+                    <th class="image-col">Image</th>
+                  <% } %>
                   <th>Uptime</th>
                   <th>Status</th>
-                  <th class="resource-desktop-col">Resources</th>
+                  <% if (showContainerResources) { %>
+                    <th class="resource-desktop-col">Resources</th>
+                  <% } %>
                 </tr>
               </thead>
               <tbody>
                 <% if (!containers.length) { %>
                   <tr>
-                    <td colspan="6" class="text-center text-muted py-4">No containers detected.</td>
+                    <td colspan="<%= containerColumnsCount %>" class="text-center text-muted py-4">No containers detected.</td>
                   </tr>
                 <% } %>
                 <% groupedContainers.forEach(group => { %>
@@ -255,7 +269,7 @@
                         <%= can.canRestartContainers ? '' : 'disabled' %>
                       />
                     </td>
-                    <td colspan="5" class="fw-semibold">
+                    <td colspan="<%= groupColumnsSpan %>" class="fw-semibold">
                       <i class="fa-solid fa-layer-group me-2"></i><%= group.title %>
                       <% if (group.detail) { %>
                         <small class="text-muted ms-2"><%= group.detail %></small>
@@ -323,7 +337,9 @@
                       </td>
                       <td>
                         <div class="fw-semibold"><%= c.Names %></div>
-                        <small class="text-muted"><%= c.ID.slice(0, 12) %></small>
+                        <% if (showContainerHash) { %>
+                          <small class="text-muted"><%= c.ID.slice(0, 12) %></small>
+                        <% } %>
                         <% if (c.serviceLinks?.length) { %>
                           <div class="service-links mt-1">
                             <% c.serviceLinks.forEach(link => { %>
@@ -335,29 +351,35 @@
                           </div>
                         <% } %>
                       </td>
-                      <td class="image-col"><%= c.Image %></td>
+                      <% if (showImageName) { %>
+                        <td class="image-col"><%= c.Image %></td>
+                      <% } %>
                       <td><%= uptimeText || '-' %></td>
                       <td><span class="<%= statusClass %>" title="<%= statusTitle %>"><%= statusLabel %></span></td>
-                      <td class="resource-desktop-col">
-                        <div class="resource-block" aria-label="Resources for <%= c.Names %>">
-                          <span class="resource-item"><i class="fa-solid fa-microchip resource-icon" aria-hidden="true"></i><strong>CPU</strong> <%= c.resourceCpu || '-' %></span>
-                          <span class="resource-item"><i class="fa-solid fa-memory resource-icon" aria-hidden="true"></i><strong>Memory</strong> <%= c.resourceMemory || '-' %></span>
-                          <span class="resource-item"><i class="fa-solid fa-network-wired resource-icon" aria-hidden="true"></i><strong>Net</strong> <%= c.resourceNetIo || '-' %></span>
-                          <span class="resource-item"><i class="fa-solid fa-hard-drive resource-icon" aria-hidden="true"></i><strong>Disk</strong> <%= c.resourceBlockIo || '-' %></span>
-                        </div>
-                      </td>
+                      <% if (showContainerResources) { %>
+                        <td class="resource-desktop-col">
+                          <div class="resource-block" aria-label="Resources for <%= c.Names %>">
+                            <span class="resource-item"><i class="fa-solid fa-microchip resource-icon" aria-hidden="true"></i><strong>CPU</strong> <%= c.resourceCpu || '-' %></span>
+                            <span class="resource-item"><i class="fa-solid fa-memory resource-icon" aria-hidden="true"></i><strong>Memory</strong> <%= c.resourceMemory || '-' %></span>
+                            <span class="resource-item"><i class="fa-solid fa-network-wired resource-icon" aria-hidden="true"></i><strong>Net</strong> <%= c.resourceNetIo || '-' %></span>
+                            <span class="resource-item"><i class="fa-solid fa-hard-drive resource-icon" aria-hidden="true"></i><strong>Disk</strong> <%= c.resourceBlockIo || '-' %></span>
+                          </div>
+                        </td>
+                      <% } %>
                     </tr>
-                    <tr class="resource-mobile-row" aria-label="Resources for <%= c.Names %>">
-                      <td class="container-select-cell"></td>
-                      <td colspan="5">
-                        <div class="resource-block resource-block-mobile">
-                          <span class="resource-item"><i class="fa-solid fa-microchip resource-icon" aria-hidden="true"></i><strong>CPU</strong> <%= c.resourceCpu || '-' %></span>
-                          <span class="resource-item"><i class="fa-solid fa-memory resource-icon" aria-hidden="true"></i><strong>Memory</strong> <%= c.resourceMemory || '-' %></span>
-                          <span class="resource-item"><i class="fa-solid fa-network-wired resource-icon" aria-hidden="true"></i><strong>Net</strong> <%= c.resourceNetIo || '-' %></span>
-                          <span class="resource-item"><i class="fa-solid fa-hard-drive resource-icon" aria-hidden="true"></i><strong>Disk</strong> <%= c.resourceBlockIo || '-' %></span>
-                        </div>
-                      </td>
-                    </tr>
+                    <% if (showContainerResources) { %>
+                      <tr class="resource-mobile-row" aria-label="Resources for <%= c.Names %>">
+                        <td class="container-select-cell"></td>
+                        <td colspan="<%= resourceMobileColspan %>">
+                          <div class="resource-block resource-block-mobile">
+                            <span class="resource-item"><i class="fa-solid fa-microchip resource-icon" aria-hidden="true"></i><strong>CPU</strong> <%= c.resourceCpu || '-' %></span>
+                            <span class="resource-item"><i class="fa-solid fa-memory resource-icon" aria-hidden="true"></i><strong>Memory</strong> <%= c.resourceMemory || '-' %></span>
+                            <span class="resource-item"><i class="fa-solid fa-network-wired resource-icon" aria-hidden="true"></i><strong>Net</strong> <%= c.resourceNetIo || '-' %></span>
+                            <span class="resource-item"><i class="fa-solid fa-hard-drive resource-icon" aria-hidden="true"></i><strong>Disk</strong> <%= c.resourceBlockIo || '-' %></span>
+                          </div>
+                        </td>
+                      </tr>
+                    <% } %>
                   <% }) %>
                 <% }) %>
               </tbody>
