@@ -45,12 +45,49 @@
       <div class="alert alert-danger" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
     <% } %>
 
+    <div class="panel mb-3">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="h5 mb-0"><i class="fa-solid fa-server me-2"></i>Servers</h2>
+        <small class="text-muted">Default marked with star</small>
+      </div>
+      <div class="server-band">
+        <% servers.forEach((server) => { %>
+          <div class="server-pill <%= server.id === activeServerId ? 'server-pill-active' : '' %> <%= !server.enabled ? 'server-pill-disabled' : '' %>">
+            <div class="d-flex align-items-center gap-2">
+              <i class="fa-solid fa-server"></i>
+              <div>
+                <div class="fw-semibold"><%= server.name %></div>
+                <small class="text-muted"><%= server.username ? `${server.username}@` : '' %><%= server.host %></small>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+              <% if (server.id === defaultServerId) { %>
+                <span class="badge text-bg-warning"><i class="fa-solid fa-star me-1"></i>Default</span>
+              <% } %>
+              <% if (server.id === activeServerId) { %>
+                <span class="badge text-bg-success">Active</span>
+              <% } else if (can.canSwitchServers && server.enabled) { %>
+                <form action="/servers/switch" method="post" class="d-inline">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <input type="hidden" name="serverId" value="<%= server.id %>" />
+                  <button type="submit" class="btn btn-sm btn-hs-secondary">
+                    <i class="fa-solid fa-right-left me-1"></i>Switch
+                  </button>
+                </form>
+              <% } %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+
     <div class="row g-3">
       <div class="col-12 col-xl-9">
         <div class="panel">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h4 mb-0"><i class="fa-brands fa-docker me-2"></i>Containers</h2>
-            <span class="text-muted"><%= containers.length %> running</span>
+            <span class="text-muted"><%= containers.length %> running on <strong><%= servers.find(s => s.id === activeServerId)?.name || 'Selected server' %></strong></span>
           </div>
 
           <div class="table-responsive">
@@ -59,6 +96,7 @@
                 <tr>
                   <th>Name</th>
                   <th>Image</th>
+                  <th>Uptime</th>
                   <th>Status</th>
                   <th class="text-end">Actions</th>
                 </tr>
@@ -66,35 +104,50 @@
               <tbody>
                 <% if (!containers.length) { %>
                   <tr>
-                    <td colspan="4" class="text-center text-muted py-4">No running containers detected.</td>
+                    <td colspan="5" class="text-center text-muted py-4">No running containers detected.</td>
                   </tr>
                 <% } %>
-                <% containers.forEach(c => { %>
-                  <tr>
-                    <td>
-                      <div class="fw-semibold"><%= c.Names %></div>
-                      <small class="text-muted"><%= c.ID.slice(0, 12) %></small>
-                    </td>
-                    <td><%= c.Image %></td>
-                    <td><span class="status-pill"><%= c.Status %></span></td>
-                    <td class="text-end">
-                      <% if (can.canRestartContainers) { %>
-                        <form
-                          action="/containers/<%= encodeURIComponent(c.Names) %>/restart"
-                          method="post"
-                          class="d-inline"
-                          onsubmit="return confirm('Restart selected container? This may briefly interrupt service.');"
-                        >
-                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                          <button type="submit" class="btn btn-sm btn-hs-primary">
-                            <i class="fa-solid fa-rotate-right me-1"></i>Restart
-                          </button>
-                        </form>
-                      <% } else { %>
-                        <span class="text-muted">No access</span>
-                      <% } %>
+                <% groupedContainers.forEach(group => { %>
+                  <tr class="compose-group-row">
+                    <td colspan="5" class="fw-semibold">
+                      <i class="fa-solid fa-layer-group me-2"></i><%= group.composeFile %>
+                      <small class="text-muted ms-2">(<%= group.containers.length %> container<%= group.containers.length === 1 ? '' : 's' %>)</small>
                     </td>
                   </tr>
+                  <% group.containers.forEach(c => { %>
+                    <% const stateText = (c.State || '').toLowerCase(); %>
+                    <% const statusText = (c.Status || '').toLowerCase(); %>
+                    <% const isRunning = stateText === 'running' || statusText.startsWith('up'); %>
+                    <% const isRestarting = stateText === 'restarting' || statusText.includes('restarting'); %>
+                    <% const statusClass = isRestarting ? 'status-pill status-pill-restarting' : (isRunning ? 'status-pill status-pill-running' : 'status-pill status-pill-stopped'); %>
+                    <% const uptimeText = (c.RunningFor || '').trim() || (isRunning ? (c.Status || '').replace(/^Up\s+/i, '').trim() : '-'); %>
+                    <tr>
+                      <td>
+                        <div class="fw-semibold"><%= c.Names %></div>
+                        <small class="text-muted"><%= c.ID.slice(0, 12) %></small>
+                      </td>
+                      <td><%= c.Image %></td>
+                      <td><%= uptimeText || '-' %></td>
+                      <td><span class="<%= statusClass %>"><%= c.Status %></span></td>
+                      <td class="text-end">
+                        <% if (can.canRestartContainers) { %>
+                          <form
+                            action="/containers/<%= encodeURIComponent(c.Names) %>/restart"
+                            method="post"
+                            class="d-inline"
+                            onsubmit="return confirm('Restart selected container? This may briefly interrupt service.');"
+                          >
+                            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                            <button type="submit" class="btn btn-sm btn-hs-primary">
+                              <i class="fa-solid fa-rotate-right me-1"></i>Restart
+                            </button>
+                          </form>
+                        <% } else { %>
+                          <span class="text-muted">No access</span>
+                        <% } %>
+                      </td>
+                    </tr>
+                  <% }) %>
                 <% }) %>
               </tbody>
             </table>
@@ -109,16 +162,27 @@
             <li class="mb-2"><i class="fa-solid fa-eye me-2"></i>View containers: <strong><%= can.canViewContainers ? 'Yes' : 'No' %></strong></li>
             <li class="mb-2"><i class="fa-solid fa-rotate-right me-2"></i>Restart containers: <strong><%= can.canRestartContainers ? 'Yes' : 'No' %></strong></li>
             <li class="mb-2"><i class="fa-solid fa-power-off me-2"></i>Restart host: <strong><%= can.canRestartHost ? 'Yes' : 'No' %></strong></li>
-            <li><i class="fa-solid fa-users me-2"></i>Manage users: <strong><%= can.canManageUsers ? 'Yes' : 'No' %></strong></li>
+            <li class="mb-2"><i class="fa-solid fa-right-left me-2"></i>Switch servers: <strong><%= can.canSwitchServers ? 'Yes' : 'No' %></strong></li>
+            <li class="mb-2"><i class="fa-solid fa-users me-2"></i>Manage users: <strong><%= can.canManageUsers ? 'Yes' : 'No' %></strong></li>
+            <li><i class="fa-solid fa-server me-2"></i>Manage servers: <strong><%= can.canManageServers ? 'Yes' : 'No' %></strong></li>
           </ul>
         </div>
 
-        <% if (can.canManageUsers) { %>
+        <% if (can.canManageUsers || can.canManageServers) { %>
           <div class="panel mb-3">
             <h2 class="h5 mb-3"><i class="fa-solid fa-user-gear me-2"></i>Administration</h2>
-            <a href="/users" class="btn btn-hs-secondary w-100">
-              <i class="fa-solid fa-users me-2"></i>User Management
-            </a>
+            <div class="d-grid gap-2">
+              <% if (can.canManageUsers) { %>
+                <a href="/users" class="btn btn-hs-secondary w-100">
+                  <i class="fa-solid fa-users me-2"></i>User Management
+                </a>
+              <% } %>
+              <% if (can.canManageServers) { %>
+                <a href="/servers" class="btn btn-hs-secondary w-100">
+                  <i class="fa-solid fa-server me-2"></i>Server Management
+                </a>
+              <% } %>
+            </div>
           </div>
         <% } %>
 

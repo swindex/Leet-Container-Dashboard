@@ -62,6 +62,7 @@ export type AppSessionUser = {
 type SessionPayload = {
   user: AppSessionUser;
   csrfToken: string;
+  activeServerId?: string;
 };
 
 declare global {
@@ -69,6 +70,7 @@ declare global {
     interface Request {
       user?: AppSessionUser;
       csrfToken?: string;
+      activeServerId?: string;
     }
   }
 }
@@ -240,6 +242,31 @@ export function setAuthSession(res: Response, user: AppSessionUser): string {
   return csrfToken;
 }
 
+function readSessionFromRequest(req: Request): SessionPayload | null {
+  const cookieValue = req.signedCookies?.[SESSION_COOKIE_NAME] as string | undefined;
+  if (!cookieValue) {
+    return null;
+  }
+  return fromCookieSession(cookieValue);
+}
+
+export function setActiveServerSession(res: Response, req: Request, serverId: string): void {
+  const session = readSessionFromRequest(req);
+  if (!session) {
+    throw new Error("Not authenticated");
+  }
+
+  const updated: SessionPayload = {
+    ...session,
+    activeServerId: serverId,
+  };
+  res.cookie(SESSION_COOKIE_NAME, toCookieSession(updated), authCookieOptions());
+}
+
+export function getActiveServerSessionId(req: Request): string | undefined {
+  return readSessionFromRequest(req)?.activeServerId;
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const cookieValue = req.signedCookies?.[SESSION_COOKIE_NAME] as string | undefined;
   if (!cookieValue) {
@@ -256,6 +283,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   req.user = session.user;
   req.csrfToken = session.csrfToken;
+  req.activeServerId = session.activeServerId;
   next();
 }
 
@@ -287,6 +315,8 @@ export function getPermissionFlags(user?: AppSessionUser): {
   canRestartContainers: boolean;
   canRestartHost: boolean;
   canManageUsers: boolean;
+  canSwitchServers: boolean;
+  canManageServers: boolean;
 } {
   if (!user) {
     return {
@@ -294,6 +324,8 @@ export function getPermissionFlags(user?: AppSessionUser): {
       canRestartContainers: false,
       canRestartHost: false,
       canManageUsers: false,
+      canSwitchServers: false,
+      canManageServers: false,
     };
   }
 
@@ -302,6 +334,8 @@ export function getPermissionFlags(user?: AppSessionUser): {
     canRestartContainers: hasPermission(user.role, PERMISSIONS.CONTAINERS_RESTART),
     canRestartHost: hasPermission(user.role, PERMISSIONS.HOST_RESTART),
     canManageUsers: hasPermission(user.role, PERMISSIONS.USERS_MANAGE),
+    canSwitchServers: hasPermission(user.role, PERMISSIONS.SERVERS_SWITCH),
+    canManageServers: hasPermission(user.role, PERMISSIONS.SERVERS_MANAGE),
   };
 }
 

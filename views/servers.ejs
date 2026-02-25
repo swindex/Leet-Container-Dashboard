@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Server Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  <link href="/public/styles.css" rel="stylesheet" />
+</head>
+<body class="hs-body">
+  <div class="container py-4">
+    <div class="row g-3 align-items-stretch mb-4">
+      <div class="col-12 col-lg-8">
+        <div class="panel h-100 d-flex flex-column justify-content-center">
+          <h1 class="mb-2"><i class="fa-solid fa-server me-2"></i>Server Management</h1>
+          <p class="text-muted mb-0">Manage target servers, credentials, and default server selection.</p>
+        </div>
+      </div>
+      <div class="col-12 col-lg-4">
+        <div class="panel h-100">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="text-muted">Signed in as</span>
+            <span class="role-badge"><%= user.role %></span>
+          </div>
+          <div class="fw-semibold mb-3"><i class="fa-solid fa-user me-2"></i><%= user.username %></div>
+          <a href="/" class="btn btn-hs-secondary w-100">
+            <i class="fa-solid fa-arrow-left me-2"></i>Back to Dashboard
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <% if (notice) { %>
+      <div class="alert alert-success" role="alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
+    <% } %>
+    <% if (error) { %>
+      <div class="alert alert-danger" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
+    <% } %>
+
+    <div class="row g-3">
+      <div class="col-12 col-xl-4">
+        <div class="panel">
+          <h2 class="h5 mb-3"><i class="fa-solid fa-plus me-2"></i>Add Remote Server</h2>
+          <form action="/servers" method="post">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+            <div class="mb-3">
+              <label for="name" class="form-label">Display Name</label>
+              <input id="name" name="name" type="text" class="form-control hs-input" required maxlength="100" />
+            </div>
+
+            <div class="mb-3">
+              <label for="host" class="form-label">Host / IP</label>
+              <input id="host" name="host" type="text" class="form-control hs-input" required maxlength="255" />
+            </div>
+
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <input id="username" name="username" type="text" class="form-control hs-input" required maxlength="100" />
+            </div>
+
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <input id="password" name="password" type="password" class="form-control hs-input" />
+            </div>
+
+            <div class="form-check mb-3">
+              <input id="enabled" name="enabled" type="checkbox" class="form-check-input" checked />
+              <label class="form-check-label" for="enabled">Enabled</label>
+            </div>
+
+            <button type="submit" class="btn btn-hs-primary w-100">
+              <i class="fa-solid fa-plus me-2"></i>Create Server
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="col-12 col-xl-8">
+        <div class="panel">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h4 mb-0"><i class="fa-solid fa-server me-2"></i>Configured Servers</h2>
+            <span class="text-muted"><%= servers.length %> total</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-hs align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Server</th>
+                  <th>Status</th>
+                  <th>Default</th>
+                  <th class="text-end">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% servers.forEach((server) => { %>
+                  <tr>
+                    <td>
+                      <div class="fw-semibold"><i class="fa-solid fa-server me-2"></i><%= server.name %></div>
+                      <small class="text-muted"><%= server.username ? `${server.username}@` : '' %><%= server.host %></small>
+                    </td>
+                    <td>
+                      <% if (server.enabled) { %>
+                        <span class="status-pill">Enabled</span>
+                      <% } else { %>
+                        <span class="status-pill status-pill-inactive">Disabled</span>
+                      <% } %>
+                    </td>
+                    <td>
+                      <% if (server.id === defaultServerId) { %>
+                        <span class="badge text-bg-warning"><i class="fa-solid fa-star me-1"></i>Default</span>
+                      <% } else if (server.enabled) { %>
+                        <form action="/servers/<%= encodeURIComponent(server.id) %>/default" method="post" class="d-inline">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <button type="submit" class="btn btn-sm btn-hs-secondary">Set Default</button>
+                        </form>
+                      <% } %>
+                    </td>
+                    <td class="text-end">
+                      <% if (server.isLocal) { %>
+                        <span class="badge text-bg-info">Built-in Local</span>
+                      <% } else { %>
+                        <button
+                          type="button"
+                          class="btn btn-sm btn-hs-secondary"
+                          data-bs-toggle="collapse"
+                          data-bs-target="#edit-server-<%= server.id %>"
+                          aria-expanded="false"
+                        >
+                          <i class="fa-solid fa-pen me-1"></i>Edit
+                        </button>
+                        <form
+                          action="/servers/<%= encodeURIComponent(server.id) %>/delete"
+                          method="post"
+                          class="d-inline ms-1"
+                          onsubmit="return confirm('Delete this server?');"
+                        >
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <button type="submit" class="btn btn-sm btn-hs-danger">
+                            <i class="fa-solid fa-trash me-1"></i>Delete
+                          </button>
+                        </form>
+                      <% } %>
+                    </td>
+                  </tr>
+
+                  <% if (!server.isLocal) { %>
+                    <tr class="collapse" id="edit-server-<%= server.id %>">
+                      <td colspan="4">
+                        <form action="/servers/<%= encodeURIComponent(server.id) %>/update" method="post" class="row g-2">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <div class="col-md-3">
+                            <input name="name" class="form-control hs-input" value="<%= server.name %>" required />
+                          </div>
+                          <div class="col-md-3">
+                            <input name="host" class="form-control hs-input" value="<%= server.host %>" required />
+                          </div>
+                          <div class="col-md-2">
+                            <input name="username" class="form-control hs-input" value="<%= server.username %>" required />
+                          </div>
+                          <div class="col-md-2">
+                            <input name="password" type="password" class="form-control hs-input" placeholder="(keep current)" />
+                          </div>
+                          <div class="col-md-1 d-flex align-items-center">
+                            <div class="form-check">
+                              <input class="form-check-input" type="checkbox" name="enabled" <%= server.enabled ? 'checked' : '' %> />
+                            </div>
+                          </div>
+                          <div class="col-md-1">
+                            <button type="submit" class="btn btn-sm btn-hs-primary w-100">Save</button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  <% } %>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

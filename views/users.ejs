@@ -27,9 +27,16 @@
             <span class="role-badge"><%= user.role %></span>
           </div>
           <div class="fw-semibold mb-3"><i class="fa-solid fa-user me-2"></i><%= user.username %></div>
-          <a href="/" class="btn btn-hs-secondary w-100">
-            <i class="fa-solid fa-arrow-left me-2"></i>Back to Dashboard
-          </a>
+          <div class="d-grid gap-2">
+            <a href="/" class="btn btn-hs-secondary w-100">
+              <i class="fa-solid fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+            <% if (can.canManageServers) { %>
+              <a href="/servers" class="btn btn-hs-secondary w-100">
+                <i class="fa-solid fa-server me-2"></i>Server Management
+              </a>
+            <% } %>
+          </div>
         </div>
       </div>
     </div>

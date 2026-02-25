@@ -5,26 +5,47 @@ import cookieParser from "cookie-parser";
 import {
   createManagedUser,
   ensureCsrf,
+  getActiveServerSessionId,
   getPermissionFlags,
   handleLogin,
   listManagedUsers,
   logout,
   requireAuth,
   requirePermission,
+  setActiveServerSession,
   setManagedUserActiveStatus,
   deleteManagedUser,
 } from "./lib/auth.js";
-import { listRunningContainers, restartContainer } from "./lib/dockerCli.js";
+import {
+  listRunningContainers,
+  restartContainer,
+  type DockerContainer,
+  type DockerTargetServer,
+} from "./lib/dockerCli.js";
 import { PERMISSIONS, ROLES, type Role } from "./lib/rbac.js";
 import { restartHost } from "./lib/systemCli.js";
+import {
+  createRemoteServer,
+  deleteRemoteServer,
+  getRemoteServerById,
+  listRemoteServers,
+  resolveServerByIdOrDefault,
+  setDefaultServer,
+  updateRemoteServer,
+} from "./lib/remoteServers.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 type AppDeps = {
-  listContainers: typeof listRunningContainers;
-  restartContainerById: typeof restartContainer;
+  listContainers: (server?: DockerTargetServer) => Promise<DockerContainer[]>;
+  restartContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   restartHostMachine: typeof restartHost;
+};
+
+type DashboardContainerGroup = {
+  composeFile: string;
+  containers: DockerContainer[];
 };
 
 const defaultDeps: AppDeps = {
@@ -38,6 +59,89 @@ function parseMessage(value: unknown): string {
     return "";
   }
   return value.slice(0, 180);
+}
+
+function toBooleanFormValue(value: unknown): boolean {
+  return value === "true" || value === "on" || value === "1";
+}
+
+function parseDockerLabels(labels: string): Record<string, string> {
+  if (!labels) {
+    return {};
+  }
+
+  return labels.split(",").reduce<Record<string, string>>((acc, pair) => {
+    const separatorIndex = pair.indexOf("=");
+    if (separatorIndex <= 0) {
+      return acc;
+    }
+
+    const key = pair.slice(0, separatorIndex).trim();
+    const value = pair.slice(separatorIndex + 1).trim();
+    if (key) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+
+function getBaseNameFromPath(pathValue: string): string {
+  const trimmed = pathValue.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const parts = trimmed.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || trimmed;
+}
+
+function resolveComposeGroup(container: DockerContainer): string {
+  const labels = parseDockerLabels(container.Labels || "");
+  const configFilesLabel = labels["com.docker.compose.project.config_files"] || "";
+  const firstConfigFile = configFilesLabel
+    .split(",")
+    .map((item) => item.trim())
+    .find(Boolean);
+
+  if (firstConfigFile) {
+    return getBaseNameFromPath(firstConfigFile);
+  }
+
+  const projectName = (labels["com.docker.compose.project"] || "").trim();
+  if (projectName) {
+    return projectName;
+  }
+
+  return "Ungrouped";
+}
+
+function groupContainersByComposeFile(containers: DockerContainer[]): DashboardContainerGroup[] {
+  const grouped = new Map<string, DockerContainer[]>();
+
+  for (const container of containers) {
+    const groupName = resolveComposeGroup(container);
+    const existing = grouped.get(groupName);
+    if (existing) {
+      existing.push(container);
+    } else {
+      grouped.set(groupName, [container]);
+    }
+  }
+
+  return Array.from(grouped.entries())
+    .map(([composeFile, entries]) => ({
+      composeFile,
+      containers: entries.sort((a, b) => a.Names.localeCompare(b.Names)),
+    }))
+    .sort((a, b) => {
+      if (a.composeFile === "Ungrouped") {
+        return 1;
+      }
+      if (b.composeFile === "Ungrouped") {
+        return -1;
+      }
+      return a.composeFile.localeCompare(b.composeFile);
+    });
 }
 
 export function createApp(partialDeps?: Partial<AppDeps>) {
@@ -66,7 +170,13 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
   app.get("/", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
     try {
-      const containers = await deps.listContainers();
+      const { servers, defaultServerId } = await listRemoteServers();
+      const selectedFromSession = getActiveServerSessionId(req);
+      const { server: activeServer } = await resolveServerByIdOrDefault(selectedFromSession);
+      setActiveServerSession(res, req, activeServer.id);
+
+      const containers = await deps.listContainers(activeServer);
+      const groupedContainers = groupContainersByComposeFile(containers);
       const can = getPermissionFlags(req.user);
       const notice = parseMessage(req.query.notice);
       const error = parseMessage(req.query.error);
@@ -75,9 +185,13 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         user: req.user,
         can,
         containers,
+        groupedContainers,
         csrfToken: req.csrfToken,
         notice,
         error,
+        servers,
+        activeServerId: activeServer.id,
+        defaultServerId,
       });
     } catch (e) {
       const error = e as Error;
@@ -85,12 +199,46 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         user: req.user,
         can: getPermissionFlags(req.user),
         containers: [],
+        groupedContainers: [],
         csrfToken: req.csrfToken,
         notice: "",
-        error: `Docker error: ${error.message}`,
+        error: `Dashboard error: ${error.message}`,
+        servers: [],
+        activeServerId: "",
+        defaultServerId: "local",
       });
     }
   });
+
+  app.post(
+    "/servers/switch",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.SERVERS_SWITCH),
+    async (req, res) => {
+      try {
+        const serverId = typeof req.body?.serverId === "string" ? req.body.serverId : "";
+        const target = await getRemoteServerById(serverId);
+        if (!target || !target.enabled) {
+          throw new Error("Server is unavailable");
+        }
+
+        setActiveServerSession(res, req, target.id);
+
+        console.info("AUDIT server_switch", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          target: target.id,
+          at: new Date().toISOString(),
+          result: "success",
+        });
+
+        res.redirect("/?notice=Server%20switched%20successfully");
+      } catch (error) {
+        res.redirect(`/?error=${encodeURIComponent((error as Error).message || "Failed to switch server")}`);
+      }
+    }
+  );
 
   app.post(
     "/users",
@@ -204,6 +352,116 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     }
   );
 
+  app.get(
+    "/servers",
+    requireAuth,
+    requirePermission(PERMISSIONS.SERVERS_MANAGE),
+    async (req, res) => {
+      try {
+        const { servers, defaultServerId } = await listRemoteServers();
+        const notice = parseMessage(req.query.notice);
+        const error = parseMessage(req.query.error);
+
+        res.render("servers", {
+          user: req.user,
+          can: getPermissionFlags(req.user),
+          servers,
+          defaultServerId,
+          csrfToken: req.csrfToken,
+          notice,
+          error,
+        });
+      } catch (error) {
+        res.status(500).render("servers", {
+          user: req.user,
+          can: getPermissionFlags(req.user),
+          servers: [],
+          defaultServerId: "local",
+          csrfToken: req.csrfToken,
+          notice: "",
+          error: `Failed to load servers: ${(error as Error).message}`,
+        });
+      }
+    }
+  );
+
+  app.post(
+    "/servers",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.SERVERS_MANAGE),
+    async (req, res) => {
+      try {
+        await createRemoteServer({
+          name: typeof req.body?.name === "string" ? req.body.name : "",
+          host: typeof req.body?.host === "string" ? req.body.host : "",
+          username: typeof req.body?.username === "string" ? req.body.username : "",
+          password: typeof req.body?.password === "string" ? req.body.password : "",
+          enabled: toBooleanFormValue(req.body?.enabled),
+        });
+        res.redirect("/servers?notice=Server%20created%20successfully");
+      } catch (error) {
+        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to create server")}`);
+      }
+    }
+  );
+
+  app.post(
+    "/servers/:serverId/update",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.SERVERS_MANAGE),
+    async (req, res) => {
+      try {
+        await updateRemoteServer(req.params.serverId, {
+          name: typeof req.body?.name === "string" ? req.body.name : "",
+          host: typeof req.body?.host === "string" ? req.body.host : "",
+          username: typeof req.body?.username === "string" ? req.body.username : "",
+          password: typeof req.body?.password === "string" ? req.body.password : undefined,
+          enabled: toBooleanFormValue(req.body?.enabled),
+        });
+
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        setActiveServerSession(res, req, server.id);
+        res.redirect("/servers?notice=Server%20updated%20successfully");
+      } catch (error) {
+        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to update server")}`);
+      }
+    }
+  );
+
+  app.post(
+    "/servers/:serverId/delete",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.SERVERS_MANAGE),
+    async (req, res) => {
+      try {
+        await deleteRemoteServer(req.params.serverId);
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        setActiveServerSession(res, req, server.id);
+        res.redirect("/servers?notice=Server%20removed%20successfully");
+      } catch (error) {
+        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to delete server")}`);
+      }
+    }
+  );
+
+  app.post(
+    "/servers/:serverId/default",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.SERVERS_MANAGE),
+    async (req, res) => {
+      try {
+        await setDefaultServer(req.params.serverId);
+        res.redirect("/servers?notice=Default%20server%20updated%20successfully");
+      } catch (error) {
+        res.redirect(`/servers?error=${encodeURIComponent((error as Error).message || "Failed to set default server")}`);
+      }
+    }
+  );
+
   app.post(
     "/containers/:containerId/restart",
     requireAuth,
@@ -212,12 +470,14 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     async (req, res) => {
       try {
         const { containerId } = req.params;
-        await deps.restartContainerById(containerId);
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        await deps.restartContainerById(containerId, server);
 
         console.info("AUDIT container_restart", {
           actor: req.user?.username,
           role: req.user?.role,
           target: containerId,
+          server: server.id,
           at: new Date().toISOString(),
           result: "success",
         });

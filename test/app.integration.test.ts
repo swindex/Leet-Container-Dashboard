@@ -222,7 +222,13 @@ describe("home server dashboard integration", () => {
       .type("form")
       .send({ _csrf: csrf });
     expect(containerRestartRes.status).toBe(302);
-    expect(restartContainerMock).toHaveBeenCalledWith("api");
+    expect(restartContainerMock).toHaveBeenCalledWith(
+      "api",
+      expect.objectContaining({
+        id: "local",
+        isLocal: true,
+      })
+    );
 
     const hostRestartRes = await agent
       .post("/host/restart")
