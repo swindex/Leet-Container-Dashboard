@@ -1,11 +1,38 @@
 .hs-body {
   font-family: "Roboto", system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
   background: #090f14;
   color: #e8f2ff;
 }
 
+.hs-theme-dark {
+  background-color: #090f14;
+  color: #e8f2ff;
+}
+
+.hs-theme-light {
+  background-color: #eef3f8;
+  color: #1f2a37;
+}
+
+.hs-body.hs-has-background {
+  background-image:
+    linear-gradient(rgba(6, 12, 18, 0.72), rgba(6, 12, 18, 0.72)),
+    var(--hs-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+.hs-theme-light.hs-has-background {
+  background-image:
+    linear-gradient(rgba(250, 252, 255, 0.68), rgba(250, 252, 255, 0.68)),
+    var(--hs-bg-image);
+}
+
 .panel {
-  background: #101923;
+  background: #101923d6;
   border: 1px solid #1b2a3b;
   border-radius: 12px;
   padding: 1.25rem;
@@ -319,6 +346,67 @@
 
 .hs-mobile-admin-nav .navbar-collapse {
   flex-basis: 100%;
+}
+
+.hs-theme-light .panel {
+  background: #ffffffc5;
+  border-color: #d6e1ec;
+}
+
+.hs-theme-light .text-muted {
+  color: #607284 !important;
+}
+
+.hs-theme-light .table-hs {
+  --bs-table-color: #1f2a37;
+  --bs-table-border-color: #d6e1ec;
+  --bs-table-striped-bg: rgba(218, 228, 238, 0.35);
+}
+
+.hs-theme-light .compose-group-row td {
+  background: rgba(208, 221, 233, 0.5);
+}
+
+.hs-theme-light .selected-action-bar,
+.hs-theme-light .server-pill,
+.hs-theme-light .hs-mobile-admin-nav,
+.hs-theme-light .hs-input {
+  background: #f8fbff;
+  border-color: #c9d8e7;
+}
+
+.hs-theme-light .hs-input,
+.hs-theme-light .modal-content,
+.hs-theme-light .modal-title,
+.hs-theme-light .resource-item,
+.hs-theme-light .service-link,
+.hs-theme-light .btn-hs-secondary {
+  color: #213142;
+}
+
+.hs-theme-light .btn-hs-secondary {
+  background: #e8f0f8;
+  border-color: #c6d7e8;
+}
+
+.hs-theme-light .btn-hs-secondary:hover,
+.hs-theme-light .btn-hs-secondary:focus {
+  background: #dce9f6;
+  color: #162433;
+}
+
+.hs-theme-light .modal-content {
+  background: #ffffff;
+  border-color: #d6e1ec;
+}
+
+.hs-theme-light .modal-header,
+.hs-theme-light .modal-footer {
+  border-color: #d9e4ef;
+}
+
+.hs-theme-light .modal .btn-close {
+  filter: none;
 }
 
 @media (max-width: 767.98px) {

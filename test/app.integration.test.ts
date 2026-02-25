@@ -46,7 +46,11 @@ async function readUsersFromFile(usersFilePath: string): Promise<Array<{ id: str
 
 describe("home server dashboard integration", () => {
   let usersFilePath = "";
+  let dashboardSettingsFilePath = "";
+  let dashboardUploadsDir = "";
   let restoreUsersFile: string | undefined;
+  let restoreDashboardSettingsFile: string | undefined;
+  let restoreDashboardUploadsDir: string | undefined;
   let restoreCookieSecret: string | undefined;
 
   const restartContainerMock = vi.fn(async (_containerId: string) => undefined);
@@ -59,6 +63,8 @@ describe("home server dashboard integration", () => {
 
   beforeAll(async () => {
     restoreUsersFile = process.env.USERS_FILE;
+    restoreDashboardSettingsFile = process.env.DASHBOARD_SETTINGS_FILE;
+    restoreDashboardUploadsDir = process.env.DASHBOARD_UPLOADS_DIR;
     restoreCookieSecret = process.env.COOKIE_SECRET;
 
     const now = new Date().toISOString();
@@ -97,6 +103,8 @@ describe("home server dashboard integration", () => {
 
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "home-server-tests-"));
     usersFilePath = path.join(tempDir, "users.json");
+    dashboardSettingsFilePath = path.join(tempDir, "dashboardSettings.json");
+    dashboardUploadsDir = path.join(tempDir, "uploads", "backgrounds");
 
     await fs.writeFile(
       usersFilePath,
@@ -111,6 +119,8 @@ describe("home server dashboard integration", () => {
     );
 
     process.env.USERS_FILE = usersFilePath;
+    process.env.DASHBOARD_SETTINGS_FILE = dashboardSettingsFilePath;
+    process.env.DASHBOARD_UPLOADS_DIR = dashboardUploadsDir;
     process.env.COOKIE_SECRET = "integration-test-secret";
   });
 
@@ -125,6 +135,18 @@ describe("home server dashboard integration", () => {
   });
 
   afterAll(async () => {
+    if (restoreDashboardSettingsFile === undefined) {
+      delete process.env.DASHBOARD_SETTINGS_FILE;
+    } else {
+      process.env.DASHBOARD_SETTINGS_FILE = restoreDashboardSettingsFile;
+    }
+
+    if (restoreDashboardUploadsDir === undefined) {
+      delete process.env.DASHBOARD_UPLOADS_DIR;
+    } else {
+      process.env.DASHBOARD_UPLOADS_DIR = restoreDashboardUploadsDir;
+    }
+
     if (restoreUsersFile === undefined) {
       delete process.env.USERS_FILE;
     } else {
@@ -186,7 +208,7 @@ describe("home server dashboard integration", () => {
     const agent = request.agent(app);
     const dashboardRes = await loginAndGetDashboard(agent, "viewer1", "ViewerPassword#2026");
 
-    expect(dashboardRes.text).toContain("Home Server Dashboard");
+    expect(dashboardRes.text).toContain("Leet Container Dashboard");
     expect(dashboardRes.text).toContain("Selected:");
     expect(dashboardRes.text).toContain("Admin Permission Required");
 
@@ -817,6 +839,134 @@ describe("home server dashboard integration", () => {
     await loginAndGetDashboard(viewerAgent, "viewer1", "ViewerPassword#2026");
     const forbiddenRes = await viewerAgent.get("/users");
     expect(forbiddenRes.status).toBe(403);
+  });
+
+  it("allows admin to access dashboard settings and blocks non-admin", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const adminAgent = request.agent(app);
+    await loginAndGetDashboard(adminAgent, "admin1", "AdminPassword#2026");
+    const settingsRes = await adminAgent.get("/settings");
+    expect(settingsRes.status).toBe(200);
+    expect(settingsRes.text).toContain("Dashboard Settings");
+
+    const viewerAgent = request.agent(app);
+    await loginAndGetDashboard(viewerAgent, "viewer1", "ViewerPassword#2026");
+    const forbiddenRes = await viewerAgent.get("/settings");
+    expect(forbiddenRes.status).toBe(403);
+  });
+
+  it("allows admin to save dashboard settings to json file", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    const settingsPage = await agent.get("/settings");
+    expect(settingsPage.status).toBe(200);
+    const csrf = extractCsrfToken(settingsPage.text);
+
+    const saveRes = await agent
+      .post("/settings")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        appTitle: "Custom Title",
+        appSlogan: "Custom slogan",
+        theme: "light",
+      });
+
+    expect(saveRes.status).toBe(302);
+    expect(saveRes.headers.location).toBe("/settings");
+
+    const savedSettings = JSON.parse(await fs.readFile(dashboardSettingsFilePath, "utf-8")) as {
+      appTitle: string;
+      appSlogan: string;
+      theme: string;
+      backgroundImagePath: string;
+    };
+
+    expect(savedSettings.appTitle).toBe("Custom Title");
+    expect(savedSettings.appSlogan).toBe("Custom slogan");
+    expect(savedSettings.theme).toBe("light");
+
+    const dashboardRes = await agent.get("/");
+    expect(dashboardRes.status).toBe(200);
+    expect(dashboardRes.text).toContain("Custom Title");
+    expect(dashboardRes.text).toContain("Custom slogan");
+  });
+
+  it("allows admin to upload dashboard background image", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    const settingsPage = await agent.get("/settings");
+    const csrf = extractCsrfToken(settingsPage.text);
+
+    const pngBuffer = Buffer.from([
+      0x89, 0x50, 0x4e, 0x47,
+      0x0d, 0x0a, 0x1a, 0x0a,
+      0x00, 0x00, 0x00, 0x0d,
+      0x49, 0x48, 0x44, 0x52,
+      0x00, 0x00, 0x00, 0x01,
+      0x00, 0x00, 0x00, 0x01,
+      0x08, 0x06, 0x00, 0x00,
+      0x00, 0x1f, 0x15, 0xc4,
+      0x89, 0x00, 0x00, 0x00,
+      0x0a, 0x49, 0x44, 0x41,
+      0x54, 0x78, 0x9c, 0x63,
+      0x00, 0x01, 0x00, 0x00,
+      0x05, 0x00, 0x01, 0x0d,
+      0x0a, 0x2d, 0xb4, 0x00,
+      0x00, 0x00, 0x00, 0x49,
+      0x45, 0x4e, 0x44, 0xae,
+      0x42, 0x60, 0x82,
+    ]);
+
+    const uploadRes = await agent
+      .post("/settings")
+      .field("_csrf", csrf)
+      .field("appTitle", "Leet Container Dashboard")
+      .field("appSlogan", "Monitor and control containers on your network.")
+      .field("theme", "dark")
+      .attach("backgroundImage", pngBuffer, {
+        filename: "background.png",
+        contentType: "image/png",
+      });
+
+    expect(uploadRes.status).toBe(302);
+    expect(uploadRes.headers.location).toBe("/settings");
+
+    const savedSettings = JSON.parse(await fs.readFile(dashboardSettingsFilePath, "utf-8")) as {
+      backgroundImagePath: string;
+    };
+
+    expect(savedSettings.backgroundImagePath).toMatch(/^\/uploads\/backgrounds\/bg-/);
+
+    const uploadedFile = path.join(
+      dashboardUploadsDir,
+      path.basename(savedSettings.backgroundImagePath)
+    );
+    const fileStat = await fs.stat(uploadedFile);
+    expect(fileStat.isFile()).toBe(true);
   });
 
   it("allows admin to add, disable/enable, and remove users", async () => {

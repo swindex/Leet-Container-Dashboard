@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign In - Home Server</title>
+  <title>Sign In - <%= dashboardSettings.appTitle %></title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -11,7 +11,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
   <link href="/public/styles.css" rel="stylesheet" />
 </head>
-<body class="hs-body">
+<body class="<%= pageBodyClass %>" data-hs-bg-image="<%= pageBackgroundImagePath %>">
   <div class="container">
     <div class="row justify-content-center align-items-center min-vh-100">
       <div class="col-12 col-md-8 col-lg-5">
@@ -40,5 +40,17 @@
       </div>
     </div>
   </div>
+
+  <script>
+    (() => {
+      const configuredBackground = document.body.getAttribute('data-hs-bg-image') || '';
+      if (!configuredBackground) {
+        return;
+      }
+
+      const escapedPath = configuredBackground.replace(/'/g, "\\'");
+      document.body.style.setProperty('--hs-bg-image', `url('${escapedPath}')`);
+    })();
+  </script>
 </body>
 </html>

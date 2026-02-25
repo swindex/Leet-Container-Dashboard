@@ -5,6 +5,7 @@ export const PERMISSIONS = {
   USERS_MANAGE: "users:manage",
   SERVERS_SWITCH: "servers:switch",
   SERVERS_MANAGE: "servers:manage",
+  SETTINGS_MANAGE: "settings:manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -27,6 +28,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     PERMISSIONS.USERS_MANAGE,
     PERMISSIONS.SERVERS_SWITCH,
     PERMISSIONS.SERVERS_MANAGE,
+    PERMISSIONS.SETTINGS_MANAGE,
   ],
 };
 

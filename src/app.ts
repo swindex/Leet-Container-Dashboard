@@ -1,7 +1,10 @@
 import express from "express";
+import fs from "fs/promises";
+import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
+import multer from "multer";
 import {
   consumeFlashSession,
   createManagedUser,
@@ -43,6 +46,14 @@ import {
   setDefaultServer,
   updateRemoteServer,
 } from "./lib/remoteServers.js";
+import {
+  DEFAULT_DASHBOARD_SETTINGS,
+  getDashboardBackgroundUploadsPath,
+  getDashboardSettings,
+  updateDashboardSettings,
+  type DashboardSettings,
+  type DashboardTheme,
+} from "./lib/dashboardSettings.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,6 +108,35 @@ type ResolvedComposeGroup = {
   title: string;
   detail: string;
 };
+
+function resolveDashboardTheme(value: unknown): DashboardTheme {
+  return value === "light" ? "light" : "dark";
+}
+
+function backgroundExtensionFromMimeType(mimeType: string): string | null {
+  const normalized = (mimeType || "").toLowerCase();
+  const map: Record<string, string> = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+  };
+  return map[normalized] ?? null;
+}
+
+function toSafeBackgroundStyle(backgroundImagePath: string): string {
+  if (!backgroundImagePath) {
+    return "";
+  }
+
+  const escapedPath = backgroundImagePath
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/\"/g, '\\"');
+
+  return `--hs-bg-image: url('${escapedPath}')`;
+}
 
 const defaultDeps: AppDeps = {
   listContainers: listRunningContainers,
@@ -505,12 +545,45 @@ function groupContainersByComposeFile(
 export function createApp(partialDeps?: Partial<AppDeps>) {
   const deps = { ...defaultDeps, ...partialDeps };
   const app = express();
+  const dashboardUploadsDir = getDashboardBackgroundUploadsPath();
+  const dashboardUploadsRootDir = path.dirname(dashboardUploadsDir);
+  const dashboardUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024,
+    },
+  });
 
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
   app.use("/public", express.static(path.join(__dirname, "public")));
+  app.use("/uploads", express.static(dashboardUploadsRootDir));
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser(process.env.COOKIE_SECRET || "dev-secret"));
+
+  void fs.mkdir(dashboardUploadsDir, { recursive: true });
+
+  app.use(async (_req, res, next) => {
+    try {
+      const dashboardSettings = await getDashboardSettings();
+      res.locals.dashboardSettings = dashboardSettings;
+      const bodyClassParts = ["hs-body", `hs-theme-${dashboardSettings.theme}`];
+      if (dashboardSettings.backgroundImagePath) {
+        bodyClassParts.push("hs-has-background");
+      }
+      res.locals.pageBodyClass = bodyClassParts.join(" ");
+      res.locals.pageBackgroundStyle = toSafeBackgroundStyle(dashboardSettings.backgroundImagePath);
+      res.locals.pageBackgroundImagePath = dashboardSettings.backgroundImagePath;
+      next();
+    } catch {
+      const fallbackSettings: DashboardSettings = { ...DEFAULT_DASHBOARD_SETTINGS };
+      res.locals.dashboardSettings = fallbackSettings;
+      res.locals.pageBodyClass = `hs-body hs-theme-${fallbackSettings.theme}`;
+      res.locals.pageBackgroundStyle = "";
+      res.locals.pageBackgroundImagePath = "";
+      next();
+    }
+  });
 
   app.get("/login", (_req, res) => {
     res.render("login", { error: "", username: "" });
@@ -760,6 +833,61 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           notice: "",
           error: `Failed to load users: ${(error as Error).message}`,
         });
+      }
+    }
+  );
+
+  app.get(
+    "/settings",
+    requireAuth,
+    requirePermission(PERMISSIONS.SETTINGS_MANAGE),
+    async (req, res) => {
+      const can = getPermissionFlags(req.user);
+      const { notice, error } = consumeFlashSession(res, req);
+      res.render("settings", {
+        user: req.user,
+        can,
+        settings: res.locals.dashboardSettings,
+        csrfToken: req.csrfToken,
+        notice,
+        error,
+      });
+    }
+  );
+
+  app.post(
+    "/settings",
+    requireAuth,
+    requirePermission(PERMISSIONS.SETTINGS_MANAGE),
+    dashboardUpload.single("backgroundImage"),
+    ensureCsrf,
+    async (req, res) => {
+      try {
+        const patch: Partial<DashboardSettings> = {
+          appTitle: typeof req.body?.appTitle === "string" ? req.body.appTitle : "",
+          appSlogan: typeof req.body?.appSlogan === "string" ? req.body.appSlogan : "",
+          theme: resolveDashboardTheme(req.body?.theme),
+        };
+
+        if (req.file) {
+          const extension = backgroundExtensionFromMimeType(req.file.mimetype);
+          if (!extension) {
+            throw new Error("Background image must be png, jpg, jpeg, webp, or gif");
+          }
+
+          await fs.mkdir(dashboardUploadsDir, { recursive: true });
+          const filename = `bg-${Date.now()}-${crypto.randomUUID()}${extension}`;
+          const targetPath = path.join(dashboardUploadsDir, filename);
+          await fs.writeFile(targetPath, req.file.buffer);
+          patch.backgroundImagePath = `/uploads/backgrounds/${filename}`;
+        }
+
+        await updateDashboardSettings(patch);
+        setFlashSession(res, req, { notice: "Dashboard settings updated successfully" });
+        res.redirect("/settings");
+      } catch (error) {
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to update dashboard settings" });
+        res.redirect("/settings");
       }
     }
   );

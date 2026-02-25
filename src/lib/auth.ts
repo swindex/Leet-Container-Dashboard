@@ -387,6 +387,7 @@ export function getPermissionFlags(user?: AppSessionUser): {
   canManageUsers: boolean;
   canSwitchServers: boolean;
   canManageServers: boolean;
+  canManageSettings: boolean;
 } {
   if (!user) {
     return {
@@ -396,6 +397,7 @@ export function getPermissionFlags(user?: AppSessionUser): {
       canManageUsers: false,
       canSwitchServers: false,
       canManageServers: false,
+      canManageSettings: false,
     };
   }
 
@@ -406,6 +408,7 @@ export function getPermissionFlags(user?: AppSessionUser): {
     canManageUsers: hasPermission(user.role, PERMISSIONS.USERS_MANAGE),
     canSwitchServers: hasPermission(user.role, PERMISSIONS.SERVERS_SWITCH),
     canManageServers: hasPermission(user.role, PERMISSIONS.SERVERS_MANAGE),
+    canManageSettings: hasPermission(user.role, PERMISSIONS.SETTINGS_MANAGE),
   };
 }
 

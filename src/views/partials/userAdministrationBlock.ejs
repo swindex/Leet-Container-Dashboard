@@ -12,7 +12,7 @@
 
 <h3 class="h6 mb-3"><i class="fa-solid fa-cog me-2"></i>Administration</h3>
 
-<% if (can.canManageUsers || can.canManageServers) { %>
+<% if (can.canManageUsers || can.canManageServers || can.canManageSettings) { %>
   <div class="d-grid gap-2">
     <% if (can.canManageUsers) { %>
       <a href="/users" class="btn btn-hs-secondary w-100">
@@ -22,6 +22,11 @@
     <% if (can.canManageServers) { %>
       <a href="/servers" class="btn btn-hs-secondary w-100">
         <i class="fa-solid fa-server me-2"></i>Server Management
+      </a>
+    <% } %>
+    <% if (can.canManageSettings) { %>
+      <a href="/settings" class="btn btn-hs-secondary w-100">
+        <i class="fa-solid fa-sliders me-2"></i>Dashboard Settings
       </a>
     <% } %>
   </div>
