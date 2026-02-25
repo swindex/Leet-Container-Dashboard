@@ -158,11 +158,20 @@ function generateCsrfToken(): string {
   return crypto.randomBytes(24).toString("hex");
 }
 
+function readCookieSecureEnv(): boolean {
+  const raw = (process.env.COOKIE_SECURE || "").trim().toLowerCase();
+  if (!raw) {
+    return false;
+  }
+
+  return raw === "true" || raw === "1" || raw === "yes" || raw === "on";
+}
+
 function authCookieOptions() {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: readCookieSecureEnv(),
     signed: true,
     maxAge: 8 * 60 * 60 * 1000,
   };
@@ -172,7 +181,7 @@ function clearAuthCookie(res: Response): void {
   res.clearCookie(SESSION_COOKIE_NAME, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: readCookieSecureEnv(),
     signed: true,
   });
 }
