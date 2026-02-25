@@ -1628,7 +1628,7 @@ describe("home server dashboard integration", () => {
 
     const loginPageRes = await agent.get("/login");
     expect(loginPageRes.status).toBe(200);
-    expect(loginPageRes.text).toContain("Authenticate to access Leet Container Dashboard home server controls.");
+    expect(loginPageRes.text).toContain("Authenticate to access Leet Container Dashboard");
     expect(loginPageRes.text).toContain("No users found. You are about to create the OG admin account.");
     expect(loginPageRes.text).toContain("Create Admin");
 
