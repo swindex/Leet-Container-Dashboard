@@ -50,7 +50,20 @@ type DashboardContainerGroup = {
   key: string;
   title: string;
   detail: string;
-  containers: DockerContainer[];
+  containers: DashboardContainer[];
+  serviceLinks: ServiceLink[];
+};
+
+type ServiceLink = {
+  port: number;
+  containerPort: number;
+  protocol: "http" | "https";
+  url: string;
+  label: string;
+};
+
+type DashboardContainer = DockerContainer & {
+  serviceLinks: ServiceLink[];
 };
 
 type ResolvedComposeGroup = {
@@ -138,7 +151,7 @@ function resolveComposeGroup(container: DockerContainer): ResolvedComposeGroup {
 
   if (workingDir || configFilesList.length) {
     const key = `compose:${workingDir}::${configFilesList.join("|")}`;
-    const title = getBaseNameFromPath(workingDir) || getBaseNameFromPath(configFiles) || "Compose Stack";
+    const title = getBaseNameFromPath(workingDir) || getBaseNameFromPath(configFiles || "") || "Compose Stack";
     const detail = [workingDir, configFilesDisplay].filter(Boolean).join(" • ");
 
     return {
@@ -155,20 +168,93 @@ function resolveComposeGroup(container: DockerContainer): ResolvedComposeGroup {
   };
 }
 
-function groupContainersByComposeFile(containers: DockerContainer[]): DashboardContainerGroup[] {
+function getServiceHost(server: DockerTargetServer): string {
+  if (server.isLocal) {
+    return "localhost";
+  }
+
+  const host = (server.host || "").trim();
+  if (!host) {
+    return "localhost";
+  }
+
+  return host.replace(/^https?:\/\//i, "");
+}
+
+function inferServiceLinksFromPorts(portsValue: string, serviceHost: string): ServiceLink[] {
+  if (!portsValue.trim()) {
+    return [];
+  }
+
+  const result: ServiceLink[] = [];
+  const seen = new Set<string>();
+  const entries = portsValue.split(",").map((entry) => entry.trim()).filter(Boolean);
+
+  for (const entry of entries) {
+    const match = entry.match(/(?:[^\s,]+:)?(?<hostPort>\d+)->(?<containerPort>\d+)\/(?<transport>[a-z]+)/i);
+    if (!match?.groups) {
+      continue;
+    }
+
+    const hostPort = Number.parseInt(match.groups.hostPort, 10);
+    const containerPort = Number.parseInt(match.groups.containerPort, 10);
+    const transport = (match.groups.transport || "").toLowerCase();
+
+    if (!Number.isFinite(hostPort) || !Number.isFinite(containerPort) || transport !== "tcp") {
+      continue;
+    }
+
+    const protocol: ServiceLink["protocol"] = hostPort === 443 || containerPort === 443 ? "https" : "http";
+    const url = `${protocol}://${serviceHost}:${hostPort}`;
+    if (seen.has(url)) {
+      continue;
+    }
+
+    seen.add(url);
+    result.push({
+      port: hostPort,
+      containerPort,
+      protocol,
+      url,
+      label: `${protocol.toUpperCase()} ${hostPort}`,
+    });
+  }
+
+  return result.sort((a, b) => a.port - b.port);
+}
+
+function groupContainersByComposeFile(
+  containers: DockerContainer[],
+  serviceHost: string
+): DashboardContainerGroup[] {
   const grouped = new Map<string, DashboardContainerGroup>();
 
   for (const container of containers) {
+    const dashboardContainer = {
+      ...container,
+      serviceLinks: inferServiceLinksFromPorts(container.Ports || "", serviceHost),
+    } as unknown as DashboardContainer;
+
     const group = resolveComposeGroup(container);
     const existing = grouped.get(group.key);
+
     if (existing) {
-      existing.containers.push(container);
+      existing.containers.push(dashboardContainer);
+
+      for (const link of dashboardContainer.serviceLinks) {
+        if (!existing.serviceLinks.some((item) => item.url === link.url)) {
+          existing.serviceLinks.push(link);
+        }
+      }
+
+      existing.serviceLinks.sort((a, b) => a.port - b.port);
     } else {
       grouped.set(group.key, {
         key: group.key,
         title: group.title,
         detail: group.detail,
-        containers: [container],
+        containers: [dashboardContainer],
+        serviceLinks: [...dashboardContainer.serviceLinks],
       });
     }
   }
@@ -221,7 +307,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       setActiveServerSession(res, req, activeServer.id);
 
       const containers = await deps.listContainers(activeServer);
-      const groupedContainers = groupContainersByComposeFile(containers);
+      const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer));
       const can = getPermissionFlags(req.user);
       const { notice, error } = consumeFlashSession(res, req);
 

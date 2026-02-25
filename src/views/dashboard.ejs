@@ -161,6 +161,16 @@
                         <small class="text-muted ms-2"><%= group.detail %></small>
                       <% } %>
                       <small class="text-muted ms-2">(<%= group.containers.length %> container<%= group.containers.length === 1 ? '' : 's' %>)</small>
+                      <% if (group.serviceLinks?.length) { %>
+                        <div class="service-links mt-2">
+                          <% group.serviceLinks.forEach(link => { %>
+                            <a class="service-link" href="<%= link.url %>" target="_blank" rel="noopener noreferrer">
+                              <i class="fa-solid fa-up-right-from-square"></i>
+                              <span><%= link.label %></span>
+                            </a>
+                          <% }) %>
+                        </div>
+                      <% } %>
                     </td>
                   </tr>
                   <% group.containers.forEach(c => { %>
@@ -191,6 +201,16 @@
                       <td>
                         <div class="fw-semibold"><%= c.Names %></div>
                         <small class="text-muted"><%= c.ID.slice(0, 12) %></small>
+                        <% if (c.serviceLinks?.length) { %>
+                          <div class="service-links mt-1">
+                            <% c.serviceLinks.forEach(link => { %>
+                              <a class="service-link" href="<%= link.url %>" target="_blank" rel="noopener noreferrer">
+                                <i class="fa-solid fa-up-right-from-square"></i>
+                                <span><%= link.label %></span>
+                              </a>
+                            <% }) %>
+                          </div>
+                        <% } %>
                       </td>
                       <td class="image-col"><%= c.Image %></td>
                       <td><%= uptimeText || '-' %></td>

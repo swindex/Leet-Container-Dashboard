@@ -74,6 +74,33 @@
   border-top-width: 2px;
 }
 
+.service-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.service-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  line-height: 1;
+  text-decoration: none;
+  color: #8ad4ff;
+  border: 1px solid #2a4d69;
+  background: rgba(15, 35, 52, 0.5);
+  border-radius: 999px;
+  padding: 0.24rem 0.48rem;
+}
+
+.service-link:hover,
+.service-link:focus {
+  color: #c3ebff;
+  border-color: #4b88b5;
+  background: rgba(23, 52, 76, 0.65);
+}
+
 .select-col,
 .group-select-cell,
 .container-select-cell {
