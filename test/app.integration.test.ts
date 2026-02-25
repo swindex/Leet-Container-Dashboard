@@ -96,7 +96,8 @@ describe("home server dashboard integration", () => {
     restoreDashboardUploadsDir = process.env.DASHBOARD_UPLOADS_DIR;
     restoreCookieSecret = process.env.COOKIE_SECRET;
 
-    usersFilePath = path.resolve(process.cwd(), "data", "users.test.json");
+    usersFilePath = path.resolve(process.cwd(), "data", "test", "users.json");
+    await fs.mkdir(path.dirname(usersFilePath), { recursive: true });
     try {
       restoreUsersFileContent = await fs.readFile(usersFilePath, "utf-8");
       usersFileExisted = true;

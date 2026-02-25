@@ -7,7 +7,6 @@
   "scripts": {
     "start": "kill-port 3000 && bun run src/index.ts",
     "dev": "kill-port 3000 && bun --watch src/index.ts",
-    "init-admin": "bun run -e \"import('./src/lib/auth.js').then(m=>m.initAdminFromEnv()).then(()=>process.exit(0)).catch(e=>{console.error(e);process.exit(1);})\"",
     "test": "vitest run"
   },
   "dependencies": {

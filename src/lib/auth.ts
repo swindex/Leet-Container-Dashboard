@@ -8,7 +8,7 @@ import { resolveDataPath } from "./dataPaths.js";
 
 const SESSION_COOKIE_NAME = "hs_session";
 const DEFAULT_USERS_PATH = resolveDataPath("users.json");
-const DEFAULT_TEST_USERS_PATH = path.resolve(process.cwd(), "data", "users.test.json");
+const DEFAULT_TEST_USERS_PATH = path.resolve(process.cwd(), "data", "test", "users.json");
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 10 * 60 * 1000;
 const LOCK_TIME_MS = 10 * 60 * 1000;

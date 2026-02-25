@@ -275,6 +275,20 @@ function createUnavailableServerMetrics(warning: string): DashboardServerMetrics
   };
 }
 
+function isLocalDockerUnavailableError(error: unknown): boolean {
+  const message = (error as Error | undefined)?.message?.toLowerCase() ?? "";
+  if (!message) {
+    return false;
+  }
+
+  return (
+    message.includes("cannot connect to the docker daemon") ||
+    message.includes("dockerdesktoplinuxengine") ||
+    message.includes("error during connect") ||
+    message.includes("the system cannot find the file specified")
+  );
+}
+
 function buildServerMetrics(hostInfo: DockerHostInfo | null, stats: DockerContainerStat[], warning: string): DashboardServerMetrics {
   if (!hostInfo && !stats.length) {
     return createUnavailableServerMetrics(warning);
@@ -629,19 +643,31 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         ]);
       } catch (primaryError) {
         if (activeServer.isLocal || !localServer || activeServer.id === localServer.id) {
-          throw primaryError;
+          if (!activeServer.isLocal || !isLocalDockerUnavailableError(primaryError)) {
+            throw primaryError;
+          }
+
+          fallbackError = "Docker engine is unavailable on this machine. Start Docker Desktop and refresh the dashboard.";
+        } else {
+          unavailableServerIds = [activeServer.id];
+          const failedServerName = activeServer.name || activeServer.host || activeServer.id;
+          activeServer = localServer;
+          fallbackError = `Failed to connect to ${failedServerName}. Marked as [unavialable] and switched to local server.`;
+
+          try {
+            containers = await deps.listContainers(activeServer);
+            [statsResult, hostInfoResult] = await Promise.allSettled([
+              deps.listContainerStats(activeServer),
+              deps.getHostInfo(activeServer),
+            ]);
+          } catch (fallbackLocalError) {
+            if (!isLocalDockerUnavailableError(fallbackLocalError)) {
+              throw fallbackLocalError;
+            }
+
+            fallbackError = `${fallbackError} Docker engine is unavailable on this machine. Start Docker Desktop and refresh the dashboard.`;
+          }
         }
-
-        unavailableServerIds = [activeServer.id];
-        const failedServerName = activeServer.name || activeServer.host || activeServer.id;
-        activeServer = localServer;
-        fallbackError = `Failed to connect to ${failedServerName}. Marked as [unavialable] and switched to local server.`;
-
-        containers = await deps.listContainers(activeServer);
-        [statsResult, hostInfoResult] = await Promise.allSettled([
-          deps.listContainerStats(activeServer),
-          deps.getHostInfo(activeServer),
-        ]);
       }
 
       setActiveServerSession(res, req, activeServer.id);
