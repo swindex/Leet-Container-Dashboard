@@ -151,14 +151,57 @@ async function createBootstrapAdmin(usernameInput: string, password: string): Pr
   };
 }
 
+function getSessionEncryptionKey(): Buffer {
+  const cookieSecret = process.env.COOKIE_SECRET?.trim();
+  if (!cookieSecret) {
+    throw new Error("COOKIE_SECRET must be set for session encryption");
+  }
+  // Derive a 32-byte key from COOKIE_SECRET using SHA-256
+  return crypto.createHash("sha256").update(cookieSecret).digest();
+}
+
 function toCookieSession(payload: SessionPayload): string {
-  return Buffer.from(JSON.stringify(payload), "utf-8").toString("base64url");
+  try {
+    const plaintext = JSON.stringify(payload);
+    const key = getSessionEncryptionKey();
+    const iv = crypto.randomBytes(12); // 12 bytes for GCM
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+    
+    const encrypted = Buffer.concat([
+      cipher.update(plaintext, "utf-8"),
+      cipher.final()
+    ]);
+    const authTag = cipher.getAuthTag();
+    
+    // Format: iv:authTag:encrypted (all base64url encoded)
+    return `${iv.toString("base64url")}:${authTag.toString("base64url")}:${encrypted.toString("base64url")}`;
+  } catch (error) {
+    console.error("Failed to encrypt session:", error);
+    throw new Error("Session encryption failed");
+  }
 }
 
 function fromCookieSession(value: string): SessionPayload | null {
   try {
-    const decoded = Buffer.from(value, "base64url").toString("utf-8");
-    const parsed = JSON.parse(decoded) as SessionPayload;
+    const parts = value.split(":");
+    if (parts.length !== 3) {
+      return null;
+    }
+    
+    const iv = Buffer.from(parts[0], "base64url");
+    const authTag = Buffer.from(parts[1], "base64url");
+    const encrypted = Buffer.from(parts[2], "base64url");
+    
+    const key = getSessionEncryptionKey();
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(authTag);
+    
+    const decrypted = Buffer.concat([
+      decipher.update(encrypted),
+      decipher.final()
+    ]);
+    
+    const parsed = JSON.parse(decrypted.toString("utf-8")) as SessionPayload;
     if (!parsed.user?.id || !parsed.user?.username || !parsed.user?.role || !parsed.csrfToken) {
       return null;
     }
