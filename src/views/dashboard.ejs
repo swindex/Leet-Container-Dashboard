@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -14,584 +13,653 @@
 </head>
 <body class="<%= pageBodyClass %>" data-hs-bg-image="<%= pageBackgroundImagePath %>">
   <%- include('partials/demoBanner') %>
-  <div class="container py-4">
-    <div class="row g-3 align-items-stretch mb-4">
-      <div class="col-12">
-        <div class="panel h-100 d-flex flex-column justify-content-center">
-          <h1 class="mb-2"><i class="fa-solid fa-server me-2"></i><%= dashboardSettings.appTitle %></h1>
-          <p class="text-muted mb-0"><%= dashboardSettings.appSlogan %></p>
-        </div>
-      </div>
-    </div>
-
-    <nav class="navbar navbar-expand-md hs-mobile-admin-nav d-md-none mb-3" aria-label="User and administration navigation">
-      <div class="container-fluid px-0">
-        <span class="navbar-brand mb-0"><i class="fa-solid fa-user me-2"></i>User Menu</span>
-        <button
-          class="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#mobile-user-admin-nav"
-          aria-controls="mobile-user-admin-nav"
-          aria-expanded="false"
-          aria-label="Toggle user and administration menu"
-        >
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="mobile-user-admin-nav">
-          <div class="panel w-100 mt-2">
-            <%- include('partials/userAdministrationBlock') %>
+  
+  <div id="app">
+    <div class="container py-4">
+      <!-- Header -->
+      <div class="row g-3 align-items-stretch mb-4">
+        <div class="col-12">
+          <div class="panel h-100 d-flex flex-column justify-content-center">
+            <h1 class="mb-2"><i class="fa-solid fa-server me-2"></i><%= dashboardSettings.appTitle %></h1>
+            <p class="text-muted mb-0"><%= dashboardSettings.appSlogan %></p>
           </div>
         </div>
       </div>
-    </nav>
 
-    <% if (notice) { %>
-      <div class="alert alert-success hs-flash-alert" role="alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
-    <% } %>
-    <% if (error) { %>
-      <div class="alert alert-danger hs-flash-alert" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
-    <% } %>
-
-    <% const showContainerResources = dashboardSettings.showContainerResources !== false; %>
-    <% const showServerResources = dashboardSettings.showServerResources !== false; %>
-    <% const showImageName = dashboardSettings.showImageName !== false; %>
-    <% const showContainerHash = dashboardSettings.showContainerHash !== false; %>
-    <% const containerColumnsCount = 4 + (showImageName ? 1 : 0) + (showContainerResources ? 1 : 0); %>
-    <% const groupColumnsSpan = containerColumnsCount - 1; %>
-    <% const resourceMobileColspan = containerColumnsCount - 1; %>
-
-    <% const unavailableIds = new Set((unavailableServerIds || []).map(id => String(id))); %>
-    <div class="panel mb-3">
-      <div class="d-flex justify-content-between align-items-center mb-2">
-        <h2 class="h5 mb-0"><i class="fa-solid fa-server me-2"></i>Servers</h2>
-        <small class="text-muted">Default marked with star</small>
-      </div>
-      <div class="server-band">
-        <% servers.forEach((server) => { %>
-          <% const isUnavailable = unavailableIds.has(server.id); %>
-          <div class="server-pill <%= server.id === activeServerId ? 'server-pill-active' : '' %> <%= (!server.enabled || isUnavailable) ? 'server-pill-disabled' : '' %>">
-            <div class="d-flex align-items-center gap-2">
-              <i class="fa-solid fa-server"></i>
-              <div>
-                <div class="fw-semibold"><%= server.name %></div>
-                <small class="text-muted"><%= server.username ? `${server.username}@` : '' %><%= server.host %></small>
-              </div>
+      <!-- Mobile Nav -->
+      <nav class="navbar navbar-expand-md hs-mobile-admin-nav d-md-none mb-3">
+        <div class="container-fluid px-0">
+          <span class="navbar-brand mb-0"><i class="fa-solid fa-user me-2"></i>User Menu</span>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mobile-user-admin-nav">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="mobile-user-admin-nav">
+            <div class="panel w-100 mt-2">
+              <%- include('partials/userAdministrationBlock') %>
             </div>
+          </div>
+        </div>
+      </nav>
 
-            <div class="d-flex align-items-center gap-2">
-              <% if (server.id === defaultServerId) { %>
-                <span class="badge text-bg-warning"><i class="fa-solid fa-star me-1"></i>Default</span>
-              <% } %>
-              <% if (isUnavailable) { %>
-                <span class="badge text-bg-danger">[unavialable]</span>
-              <% } %>
-              <% if (server.id === activeServerId) { %>
-                <span class="badge text-bg-success">Active</span>
-              <% } else if (can.canSwitchServers && server.enabled) { %>
-                <form action="/servers/switch" method="post" class="d-inline">
+      <!-- Flash Messages -->
+      <% if (notice) { %>
+        <div class="alert alert-success hs-flash-alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-danger hs-flash-alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
+      <% } %>
+
+      <!-- Loading State -->
+      <div v-if="loading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-3">Loading dashboard data...</p>
+      </div>
+
+      <!-- Dashboard Content (Vue-rendered) -->
+      <template v-if="!loading">
+        <!-- Servers Panel -->
+        <div class="panel mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h5 mb-0"><i class="fa-solid fa-server me-2"></i>Servers</h2>
+            <small class="text-muted">Default marked with star</small>
+          </div>
+          <div class="server-band">
+            <div v-for="server in servers" :key="server.id" 
+                 :class="['server-pill', 
+                          server.id === activeServerId ? 'server-pill-active' : '',
+                          (!server.enabled || unavailableServerIds.includes(server.id)) ? 'server-pill-disabled' : '']">
+              <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-server"></i>
+                <div>
+                  <div class="fw-semibold">{{ server.name }}</div>
+                  <small class="text-muted">{{ server.username ? server.username + '@' : '' }}{{ server.host }}</small>
+                </div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span v-if="server.id === defaultServerId" class="badge text-bg-warning">
+                  <i class="fa-solid fa-star me-1"></i>Default
+                </span>
+                <span v-if="unavailableServerIds.includes(server.id)" class="badge text-bg-danger">[unavailable]</span>
+                <span v-if="server.id === activeServerId" class="badge text-bg-success">Active</span>
+                <form v-else-if="<%= can.canSwitchServers %> && server.enabled" action="/servers/switch" method="post" class="d-inline">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <input type="hidden" name="serverId" value="<%= server.id %>" />
+                  <input type="hidden" name="serverId" :value="server.id" />
                   <button type="submit" class="btn btn-sm btn-hs-secondary">
                     <i class="fa-solid fa-right-left me-1"></i>Switch
                   </button>
                 </form>
-              <% } %>
-            </div>
-          </div>
-        <% }) %>
-      </div>
-    </div>
-
-    <% if (showServerResources) { %>
-      <div class="panel mb-3">
-        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-          <h2 class="h5 mb-0"><i class="fa-solid fa-microchip me-2"></i>Resource Consumption</h2>
-          <small class="text-muted">Current snapshot from Docker</small>
-        </div>
-        <% if (metricsWarning) { %>
-          <div class="alert alert-warning py-2 mb-2" role="alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= metricsWarning %></div>
-        <% } %>
-        <div class="row g-2 small">
-          <div class="col-6 col-md-3">
-            <div class="border rounded p-2 h-100">
-              <div class="text-muted">CPU Cores</div>
-              <div class="fw-semibold"><%= serverMetrics.cpuCores %></div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="border rounded p-2 h-100">
-              <div class="text-muted">Total Memory</div>
-              <div class="fw-semibold"><%= serverMetrics.totalMemory %></div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="border rounded p-2 h-100">
-              <div class="text-muted">Container Memory Used</div>
-              <div class="fw-semibold"><%= serverMetrics.usedMemory %></div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="border rounded p-2 h-100">
-              <div class="text-muted">Memory Utilization</div>
-              <div class="fw-semibold"><%= serverMetrics.memoryUtilization %></div>
-              <small class="text-muted"><%= serverMetrics.monitoredContainers %> monitored container<%= serverMetrics.monitoredContainers === 1 ? '' : 's' %></small>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    <% } %>
 
-    <div class="row g-3">
-      <div class="col-12 col-xl-9">
-        <div class="panel">
-          <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="h4 mb-0"><i class="fa-brands fa-docker me-2"></i>Containers</h2>
-            <span class="text-muted"><%= containers.length %> total on <strong><%= servers.find(s => s.id === activeServerId)?.name || 'Selected server' %></strong></span>
+        <!-- Server Resources (if enabled in settings) -->
+        <div v-if="<%= dashboardSettings.showServerResources !== false %>" class="panel mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h2 class="h5 mb-0"><i class="fa-solid fa-microchip me-2"></i>Resource Consumption</h2>
+            <small class="text-muted">Auto-updates every 10s</small>
           </div>
+          <div class="row g-2 small">
+            <div class="col-6 col-md-3">
+              <div class="border rounded p-2 h-100">
+                <div class="text-muted">CPU Cores</div>
+                <div class="fw-semibold">{{ serverMetrics.cpuCores }}</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="border rounded p-2 h-100">
+                <div class="text-muted">Total Memory</div>
+                <div class="fw-semibold">{{ serverMetrics.totalMemory }}</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="border rounded p-2 h-100">
+                <div class="text-muted">Container Memory Used</div>
+                <div class="fw-semibold">{{ serverMetrics.usedMemory }}</div>
+              </div>
+            </div>
+            <div class="col-6 col-md-3">
+              <div class="border rounded p-2 h-100">
+                <div class="text-muted">Memory Utilization</div>
+                <div class="fw-semibold">{{ serverMetrics.memoryUtilization }}</div>
+                <small class="text-muted">{{ serverMetrics.monitoredContainers }} monitored container{{ serverMetrics.monitoredContainers === 1 ? '' : 's' }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
 
-          <div id="selected-action-bar" class="selected-action-bar d-none mb-3">
-            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-              <div class="fw-semibold">Selected: <span id="selected-count">0</span></div>
-              <div class="d-flex align-items-center flex-wrap gap-2">
-                <form
-                  id="bulk-remove-form"
-                  action="/containers/remove"
-                  method="post"
-                  class="d-inline"
-                  onsubmit="return confirm('Remove selected stopped containers? This permanently deletes container entries.');"
-                >
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <div id="selected-container-inputs-remove"></div>
-                  <button
-                    id="bulk-remove-button"
-                    type="submit"
-                    class="btn btn-sm btn-outline-danger"
-                    <%= can.canRestartContainers ? '' : 'disabled' %>
-                  >
-                    <i class="fa-solid fa-trash me-1"></i>Remove
-                  </button>
-                </form>
+        <!-- Containers -->
+        <div class="row g-3">
+          <div class="col-12 col-xl-9">
+            <div class="panel">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h4 mb-0"><i class="fa-brands fa-docker me-2"></i>Containers</h2>
+                <span class="text-muted">{{ containers.length }} total</span>
+              </div>
 
-                <form
-                  id="bulk-start-form"
-                  action="/containers/start"
-                  method="post"
-                  class="d-inline"
-                  onsubmit="return confirm('Start selected containers?');"
-                >
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <div id="selected-container-inputs-start"></div>
-                  <button
-                    id="bulk-start-button"
-                    type="submit"
-                    class="btn btn-sm btn-success"
-                    <%= can.canRestartContainers ? '' : 'disabled' %>
-                  >
-                    <i class="fa-solid fa-play me-1"></i>Start
-                  </button>
-                </form>
+              <!-- Bulk Action Bar -->
+              <div v-if="selectedContainers.size > 0" class="selected-action-bar mb-3">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div class="fw-semibold">Selected: {{ selectedContainers.size }}</div>
+                  <div class="d-flex align-items-center flex-wrap gap-2">
+                    <form action="/containers/remove" method="post" class="d-inline"
+                          @submit="handleRemove">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                      <input v-for="name in Array.from(selectedContainers)" :key="name"
+                             type="hidden" name="containers" :value="name" />
+                      <button type="submit" class="btn btn-sm btn-outline-danger" 
+                              :disabled="!<%= can.canRestartContainers %> || !canRemove">
+                        <i class="fa-solid fa-trash me-1"></i>Remove
+                      </button>
+                    </form>
+                    
+                    <form action="/containers/start" method="post" class="d-inline"
+                          @submit="handleStart">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                      <input v-for="name in Array.from(selectedContainers)" :key="name"
+                             type="hidden" name="containers" :value="name" />
+                      <button type="submit" class="btn btn-sm btn-success"
+                              :disabled="!<%= can.canRestartContainers %> || !canStart">
+                        <i class="fa-solid fa-play me-1"></i>Start
+                      </button>
+                    </form>
+                    
+                    <form action="/containers/stop" method="post" class="d-inline"
+                          @submit="handleStop">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                      <input v-for="name in Array.from(selectedContainers)" :key="name"
+                             type="hidden" name="containers" :value="name" />
+                      <button type="submit" class="btn btn-sm btn-danger"
+                              :disabled="!<%= can.canRestartContainers %> || !canStop">
+                        <i class="fa-solid fa-stop me-1"></i>Stop
+                      </button>
+                    </form>
+                    
+                    <form action="/containers/restart" method="post" class="d-inline"
+                          @submit="handleRestart">
+                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                      <input v-for="name in Array.from(selectedContainers)" :key="name"
+                             type="hidden" name="containers" :value="name" />
+                      <button type="submit" class="btn btn-sm btn-hs-primary"
+                              :disabled="!<%= can.canRestartContainers %>">
+                        <i class="fa-solid fa-rotate-right me-1"></i>Restart
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
 
-                <form
-                  id="bulk-stop-form"
-                  action="/containers/stop"
-                  method="post"
-                  class="d-inline"
-                  onsubmit="return confirm('Stop selected containers? This may interrupt service.');"
-                >
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <div id="selected-container-inputs-stop"></div>
-                  <button
-                    id="bulk-stop-button"
-                    type="submit"
-                    class="btn btn-sm btn-danger"
-                    <%= can.canRestartContainers ? '' : 'disabled' %>
-                  >
-                    <i class="fa-solid fa-stop me-1"></i>Stop
-                  </button>
-                </form>
-
-                <form
-                  id="bulk-restart-form"
-                  action="/containers/restart"
-                  method="post"
-                  class="d-inline"
-                  onsubmit="return confirm('Restart selected containers? This may briefly interrupt service.');"
-                >
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <div id="selected-container-inputs-restart"></div>
-                  <button
-                    id="bulk-restart-button"
-                    type="submit"
-                    class="btn btn-sm btn-hs-primary"
-                    <%= can.canRestartContainers ? '' : 'disabled' %>
-                  >
-                    <i class="fa-solid fa-rotate-right me-1"></i>Restart
-                  </button>
-                </form>
+              <div class="table-responsive containers-table-wrap">
+                <table v-if="containers.length > 0" class="table table-hs align-middle mb-0">
+                  <thead>
+                    <tr>
+                      <th class="select-col">
+                        <input type="checkbox" class="form-check-input"
+                               v-model="selectAll"
+                               @change="toggleSelectAll"
+                               :disabled="areAllContainersDisabled"
+                               aria-label="Select all containers" />
+                      </th>
+                      <th>Name</th>
+                      <th v-if="<%= dashboardSettings.showImageName !== false %>">Image</th>
+                      <th>Uptime</th>
+                      <th>Status</th>
+                      <th v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">Resources</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template v-for="group in groupedContainers" :key="group.key">
+                      <tr class="compose-group-row">
+                        <td class="group-select-cell">
+                          <input type="checkbox" class="form-check-input"
+                                 :checked="isGroupSelected(group.key)"
+                                 :indeterminate.prop="isGroupIndeterminate(group.key)"
+                                 @change="toggleGroupSelection(group.key)"
+                                 :disabled="areAllGroupContainersDisabled(group.key)"
+                                 :aria-label="'Select all containers in group ' + group.title" />
+                        </td>
+                        <td :colspan="<%= dashboardSettings.showImageName !== false ? 5 : 4 %>" class="fw-semibold">
+                          <i class="fa-solid fa-layer-group me-2"></i>{{ group.title }}
+                          <small v-if="group.detail" class="text-muted ms-2">{{ group.detail }}</small>
+                          <small class="text-muted ms-2">({{ group.containers.length }} container{{ group.containers.length === 1 ? '' : 's' }})</small>
+                          <div v-if="group.serviceLinks && group.serviceLinks.length" class="service-links mt-2">
+                            <a v-for="link in group.serviceLinks" :key="link.url" 
+                               class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">
+                              <i class="fa-solid fa-up-right-from-square"></i>
+                              <span>{{ link.label }}</span>
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      <template v-for="container in group.containers" :key="container.ID">
+                        <tr class="container-main-row">
+                          <td class="container-select-cell">
+                            <input type="checkbox" class="form-check-input"
+                                   :value="container.Names"
+                                   v-model="selectedContainers"
+                                   :disabled="!<%= can.canRestartContainers %> || isContainerPending(container)"
+                                   :aria-label="'Select container ' + container.Names" />
+                          </td>
+                          <td>
+                            <div class="fw-semibold">{{ container.Names }}</div>
+                            <small v-if="<%= dashboardSettings.showContainerHash !== false %>" class="text-muted">{{ container.ID.slice(0, 12) }}</small>
+                            <div v-if="container.serviceLinks && container.serviceLinks.length" class="service-links mt-1">
+                              <a v-for="link in container.serviceLinks" :key="link.url"
+                                 class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">
+                                <i class="fa-solid fa-up-right-from-square"></i>
+                                <span>{{ link.label }}</span>
+                              </a>
+                            </div>
+                          </td>
+                          <td v-if="<%= dashboardSettings.showImageName !== false %>">{{ container.Image }}</td>
+                          <td>{{ getUptime(container) }}</td>
+                          <td>
+                            <span :class="getStatusClass(container)" :title="getStatusLabel(container)">
+                              {{ getStatusLabel(container) }}
+                            </span>
+                          </td>
+                          <td v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">
+                            <div class="resource-block">
+                              <span class="resource-item">
+                                <i class="fa-solid fa-microchip resource-icon"></i>
+                                <strong>CPU</strong> {{ container.resourceCpu || '-' }}
+                              </span>
+                              <span class="resource-item">
+                                <i class="fa-solid fa-memory resource-icon"></i>
+                                <strong>Memory</strong> {{ container.resourceMemory || '-' }}
+                              </span>
+                              <span class="resource-item">
+                                <i class="fa-solid fa-network-wired resource-icon"></i>
+                                <strong>Net</strong> {{ container.resourceNetIo || '-' }}
+                              </span>
+                              <span class="resource-item">
+                                <i class="fa-solid fa-hard-drive resource-icon"></i>
+                                <strong>Disk</strong> {{ container.resourceBlockIo || '-' }}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-mobile-row">
+                          <td class="container-select-cell"></td>
+                          <td :colspan="<%= dashboardSettings.showImageName !== false ? 3 : 2 %>">
+                            <div class="resource-block resource-block-mobile">
+                              <span class="resource-item">
+                                <i class="fa-solid fa-microchip resource-icon"></i>
+                                <strong>CPU</strong> {{ container.resourceCpu || '-' }}
+                              </span>
+                              <span class="resource-item">
+                                <i class="fa-solid fa-memory resource-icon"></i>
+                                <strong>Memory</strong> {{ container.resourceMemory || '-' }}
+                              </span>
+                              <span class="resource-item">
+                                <i class="fa-solid fa-network-wired resource-icon"></i>
+                                <strong>Net</strong> {{ container.resourceNetIo || '-' }}
+                              </span>
+                              <span class="resource-item">
+                                <i class="fa-solid fa-hard-drive resource-icon"></i>
+                                <strong>Disk</strong> {{ container.resourceBlockIo || '-' }}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      </template>
+                    </template>
+                  </tbody>
+                </table>
+                <div v-else class="text-center text-muted py-4">
+                  No containers detected.
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="table-responsive containers-table-wrap">
-            <table class="table table-hs align-middle mb-0">
-              <thead>
-                <tr>
-                  <th class="select-col">
-                    <input
-                      id="toggle-all-containers"
-                      class="form-check-input"
-                      type="checkbox"
-                      aria-label="Select all containers"
-                      <%= can.canRestartContainers ? '' : 'disabled' %>
-                    />
-                  </th>
-                  <th>Name</th>
-                  <% if (showImageName) { %>
-                    <th class="image-col">Image</th>
-                  <% } %>
-                  <th>Uptime</th>
-                  <th>Status</th>
-                  <% if (showContainerResources) { %>
-                    <th class="resource-desktop-col">Resources</th>
-                  <% } %>
-                </tr>
-              </thead>
-              <tbody>
-                <% if (!containers.length) { %>
-                  <tr>
-                    <td colspan="<%= containerColumnsCount %>" class="text-center text-muted py-4">No containers detected.</td>
-                  </tr>
-                <% } %>
-                <% groupedContainers.forEach(group => { %>
-                  <tr class="compose-group-row">
-                    <td class="group-select-cell">
-                      <input
-                        class="form-check-input group-checkbox"
-                        type="checkbox"
-                        data-group-key="<%= group.key %>"
-                        aria-label="Select all containers in group <%= group.title %>"
-                        <%= can.canRestartContainers ? '' : 'disabled' %>
-                      />
-                    </td>
-                    <td colspan="<%= groupColumnsSpan %>" class="fw-semibold">
-                      <i class="fa-solid fa-layer-group me-2"></i><%= group.title %>
-                      <% if (group.detail) { %>
-                        <small class="text-muted ms-2"><%= group.detail %></small>
-                      <% } %>
-                      <small class="text-muted ms-2">(<%= group.containers.length %> container<%= group.containers.length === 1 ? '' : 's' %>)</small>
-                      <% if (group.serviceLinks?.length) { %>
-                        <div class="service-links mt-2">
-                          <% group.serviceLinks.forEach(link => { %>
-                            <a class="service-link" href="<%= link.url %>" target="_blank" rel="noopener noreferrer">
-                              <i class="fa-solid fa-up-right-from-square"></i>
-                              <span><%= link.label %></span>
-                            </a>
-                          <% }) %>
-                        </div>
-                      <% } %>
-                    </td>
-                  </tr>
-                  <% group.containers.forEach(c => { %>
-                    <% const stateText = (c.State || '').toLowerCase(); %>
-                    <% const statusText = (c.Status || '').toLowerCase(); %>
-                    <% const isRunning = stateText === 'running' || statusText.startsWith('up'); %>
-                    <% const isRestarting = stateText === 'restarting' || statusText.includes('restarting'); %>
-                    <% const statusClass = isRestarting ? 'status-pill status-pill-restarting' : (isRunning ? 'status-pill status-pill-running' : 'status-pill status-pill-stopped'); %>
-                    <% const healthMatch = (c.Status || '').match(/\(([^)]+)\)/); %>
-                    <% const rawHealthText = (healthMatch?.[1] || '').trim(); %>
-                    <% const healthText = statusText.startsWith('up') ? rawHealthText.replace(/^health:\s*/i, '').trim() : ''; %>
-                    <% const healthLower = healthText.toLowerCase(); %>
-                    <% const hasKnownHealth = healthLower === 'healthy' || healthLower === 'unhealthy' || healthLower === 'starting'; %>
-                    <% const normalizedHealth = hasKnownHealth ? (healthText.charAt(0).toUpperCase() + healthText.slice(1).toLowerCase()) : ''; %>
-                    <% const exitedCodeMatch = (c.Status || '').match(/^Exited\s+\((\d+)\)/i); %>
-                    <% const exitedCode = exitedCodeMatch ? Number.parseInt(exitedCodeMatch[1], 10) : NaN; %>
-                    <% const hasExitCode = Number.isFinite(exitedCode); %>
-                    <% const exitReasonByCode = {
-                      0: 'Completed',
-                      1: 'General error',
-                      125: 'Docker run failed',
-                      126: 'Command cannot execute',
-                      127: 'Command not found',
-                      137: 'Killed / Possible OOM',
-                      139: 'Segmentation fault',
-                      143: 'Terminated',
-                    }; %>
-                    <% const stoppedReason = hasExitCode
-                      ? (exitReasonByCode[exitedCode] || `Error ${exitedCode}`)
-                      : (stateText === 'dead' || statusText.startsWith('dead') ? 'Dead' : ''); %>
-                    <% const stateLabel = stateText ? (stateText.charAt(0).toUpperCase() + stateText.slice(1)) : ''; %>
-                    <% const isStopped = stateText === 'exited' || stateText === 'dead' || statusText.startsWith('exited') || statusText.startsWith('dead'); %>
-                    <% const stoppedLabel = 'Stopped'; %>
-                    <% const statusLabel = normalizedHealth || (isRestarting ? 'Restarting' : (isRunning ? 'Running' : (isStopped ? stoppedLabel : (stateLabel || 'Unknown')))); %>
-                    <% const statusTitle = isStopped && stoppedReason ? `Stopped reason: ${stoppedReason}` : statusLabel; %>
-                    <% const statusHasUpPrefix = /^up\s+/i.test(c.Status || ''); %>
-                    <% const uptimeFromStatus = statusHasUpPrefix ? (c.Status || '').replace(/^Up\s+/i, '').replace(/\s*\([^)]*\)\s*$/,'').trim() : ''; %>
-                    <% const uptimeText = isRunning ? (uptimeFromStatus || (c.RunningFor || '').trim() || '-') : '-'; %>
-                    <tr class="container-main-row">
-                      <td class="container-select-cell">
-                        <input
-                          class="form-check-input container-checkbox"
-                          type="checkbox"
-                          data-group-key="<%= group.key %>"
-                          data-is-running="<%= isRunning ? 'true' : 'false' %>"
-                          value="<%= c.Names %>"
-                          aria-label="Select container <%= c.Names %>"
-                          <%= can.canRestartContainers ? '' : 'disabled' %>
-                        />
-                      </td>
-                      <td>
-                        <div class="fw-semibold"><%= c.Names %></div>
-                        <% if (showContainerHash) { %>
-                          <small class="text-muted"><%= c.ID.slice(0, 12) %></small>
-                        <% } %>
-                        <% if (c.serviceLinks?.length) { %>
-                          <div class="service-links mt-1">
-                            <% c.serviceLinks.forEach(link => { %>
-                              <a class="service-link" href="<%= link.url %>" target="_blank" rel="noopener noreferrer">
-                                <i class="fa-solid fa-up-right-from-square"></i>
-                                <span><%= link.label %></span>
-                              </a>
-                            <% }) %>
-                          </div>
-                        <% } %>
-                      </td>
-                      <% if (showImageName) { %>
-                        <td class="image-col"><%= c.Image %></td>
-                      <% } %>
-                      <td><%= uptimeText || '-' %></td>
-                      <td><span class="<%= statusClass %>" title="<%= statusTitle %>"><%= statusLabel %></span></td>
-                      <% if (showContainerResources) { %>
-                        <td class="resource-desktop-col">
-                          <div class="resource-block" aria-label="Resources for <%= c.Names %>">
-                            <span class="resource-item"><i class="fa-solid fa-microchip resource-icon" aria-hidden="true"></i><strong>CPU</strong> <%= c.resourceCpu || '-' %></span>
-                            <span class="resource-item"><i class="fa-solid fa-memory resource-icon" aria-hidden="true"></i><strong>Memory</strong> <%= c.resourceMemory || '-' %></span>
-                            <span class="resource-item"><i class="fa-solid fa-network-wired resource-icon" aria-hidden="true"></i><strong>Net</strong> <%= c.resourceNetIo || '-' %></span>
-                            <span class="resource-item"><i class="fa-solid fa-hard-drive resource-icon" aria-hidden="true"></i><strong>Disk</strong> <%= c.resourceBlockIo || '-' %></span>
-                          </div>
-                        </td>
-                      <% } %>
-                    </tr>
-                    <% if (showContainerResources) { %>
-                      <tr class="resource-mobile-row" aria-label="Resources for <%= c.Names %>">
-                        <td class="container-select-cell"></td>
-                        <td colspan="<%= resourceMobileColspan %>">
-                          <div class="resource-block resource-block-mobile">
-                            <span class="resource-item"><i class="fa-solid fa-microchip resource-icon" aria-hidden="true"></i><strong>CPU</strong> <%= c.resourceCpu || '-' %></span>
-                            <span class="resource-item"><i class="fa-solid fa-memory resource-icon" aria-hidden="true"></i><strong>Memory</strong> <%= c.resourceMemory || '-' %></span>
-                            <span class="resource-item"><i class="fa-solid fa-network-wired resource-icon" aria-hidden="true"></i><strong>Net</strong> <%= c.resourceNetIo || '-' %></span>
-                            <span class="resource-item"><i class="fa-solid fa-hard-drive resource-icon" aria-hidden="true"></i><strong>Disk</strong> <%= c.resourceBlockIo || '-' %></span>
-                          </div>
-                        </td>
-                      </tr>
-                    <% } %>
-                  <% }) %>
-                <% }) %>
-              </tbody>
-            </table>
+          <!-- Sidebar -->
+          <div class="col-12 col-xl-3">
+            <div class="panel mb-3 d-none d-md-block">
+              <h2 class="h5 mb-3"><i class="fa-solid fa-user me-2"></i>User Menu</h2>
+              <%- include('partials/userAdministrationBlock') %>
+            </div>
+
+            <div class="panel mb-3">
+              <h2 class="h5 mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Permissions</h2>
+              <ul class="list-unstyled mb-0 small">
+                <li class="mb-2"><i class="fa-solid fa-eye me-2"></i>View containers: <strong><%= can.canViewContainers ? 'Yes' : 'No' %></strong></li>
+                <li class="mb-2"><i class="fa-solid fa-rotate-right me-2"></i>Restart containers: <strong><%= can.canRestartContainers ? 'Yes' : 'No' %></strong></li>
+                <li class="mb-2"><i class="fa-solid fa-power-off me-2"></i>Restart host: <strong><%= can.canRestartHost ? 'Yes' : 'No' %></strong></li>
+                <li class="mb-2"><i class="fa-solid fa-right-left me-2"></i>Switch servers: <strong><%= can.canSwitchServers ? 'Yes' : 'No' %></strong></li>
+                <li class="mb-2"><i class="fa-solid fa-users me-2"></i>Manage users: <strong><%= can.canManageUsers ? 'Yes' : 'No' %></strong></li>
+                <li class="mb-2"><i class="fa-solid fa-server me-2"></i>Manage servers: <strong><%= can.canManageServers ? 'Yes' : 'No' %></strong></li>
+                <li><i class="fa-solid fa-sliders me-2"></i>Manage settings: <strong><%= can.canManageSettings ? 'Yes' : 'No' %></strong></li>
+              </ul>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div class="col-12 col-xl-3">
-        <div class="panel mb-3 d-none d-md-block">
-          <h2 class="h5 mb-3"><i class="fa-solid fa-user me-2"></i>User Menu</h2>
-          <%- include('partials/userAdministrationBlock') %>
-        </div>
-
-        <div class="panel mb-3">
-          <h2 class="h5 mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Permissions</h2>
-          <ul class="list-unstyled mb-0 small">
-            <li class="mb-2"><i class="fa-solid fa-eye me-2"></i>View containers: <strong><%= can.canViewContainers ? 'Yes' : 'No' %></strong></li>
-            <li class="mb-2"><i class="fa-solid fa-rotate-right me-2"></i>Restart containers: <strong><%= can.canRestartContainers ? 'Yes' : 'No' %></strong></li>
-            <li class="mb-2"><i class="fa-solid fa-power-off me-2"></i>Restart host: <strong><%= can.canRestartHost ? 'Yes' : 'No' %></strong></li>
-            <li class="mb-2"><i class="fa-solid fa-right-left me-2"></i>Switch servers: <strong><%= can.canSwitchServers ? 'Yes' : 'No' %></strong></li>
-            <li class="mb-2"><i class="fa-solid fa-users me-2"></i>Manage users: <strong><%= can.canManageUsers ? 'Yes' : 'No' %></strong></li>
-            <li class="mb-2"><i class="fa-solid fa-server me-2"></i>Manage servers: <strong><%= can.canManageServers ? 'Yes' : 'No' %></strong></li>
-            <li><i class="fa-solid fa-sliders me-2"></i>Manage settings: <strong><%= can.canManageSettings ? 'Yes' : 'No' %></strong></li>
-          </ul>
-        </div>
-
-      </div>
+      </template>
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3.4.21/dist/vue.global.prod.js"></script>
   <%- include('partials/footer') %>
+  
   <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          loading: true,
+          containers: [],
+          groupedContainers: [],
+          serverMetrics: {
+            cpuCores: '-',
+            totalMemory: '-',
+            usedMemory: '-',
+            memoryUtilization: '-',
+            monitoredContainers: 0
+          },
+          servers: <%- JSON.stringify(servers) %>,
+          activeServerId: '<%= activeServerId %>',
+          defaultServerId: '<%= defaultServerId %>',
+          unavailableServerIds: [],
+          pendingActions: {},
+          refreshInterval: null,
+          selectedContainers: new Set(),
+          selectAll: false
+        };
+      },
+      computed: {
+        canRemove() {
+          // Can only remove stopped containers
+          return Array.from(this.selectedContainers).every(name => {
+            const container = this.containers.find(c => c.Names === name);
+            return container && !this.isRunning(container);
+          });
+        },
+        canStart() {
+          // Can only start stopped containers
+          return Array.from(this.selectedContainers).some(name => {
+            const container = this.containers.find(c => c.Names === name);
+            return container && !this.isRunning(container);
+          });
+        },
+        canStop() {
+          // Can only stop running containers
+          return Array.from(this.selectedContainers).some(name => {
+            const container = this.containers.find(c => c.Names === name);
+            return container && this.isRunning(container);
+          });
+        },
+        areAllContainersDisabled() {
+          // All containers are disabled if user lacks permission or all containers have pending actions
+          if (!<%= can.canRestartContainers %>) return true;
+          if (this.containers.length === 0) return true;
+          return this.containers.every(c => this.isContainerPending(c));
+        }
+      },
+      mounted() {
+        this.fetchDashboardData();
+        this.startAutoRefresh();
+        
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            this.stopAutoRefresh();
+          } else {
+            this.startAutoRefresh();
+          }
+        });
+      },
+      beforeUnmount() {
+        this.stopAutoRefresh();
+      },
+      watch: {
+        selectedContainers: {
+          handler() {
+            // Update the "select all" checkbox when individual selections change
+            this.updateSelectAllState();
+          },
+          deep: true
+        }
+      },
+      methods: {
+        async fetchDashboardData() {
+          try {
+            const response = await fetch('/api/dashboard', { credentials: 'same-origin' });
+            
+            if (!response.ok) {
+              console.error('Failed to fetch dashboard data');
+              return;
+            }
+            
+            const result = await response.json();
+            
+            if (result.success && result.data) {
+              this.containers = result.data.containers;
+              this.groupedContainers = result.data.groupedContainers;
+              this.serverMetrics = result.data.serverMetrics;
+              this.servers = result.data.servers;
+              this.activeServerId = result.data.activeServerId;
+              this.defaultServerId = result.data.defaultServerId;
+              this.unavailableServerIds = result.data.unavailableServerIds;
+              this.pendingActions = result.data.pendingActions || {};
+              this.loading = false;
+            }
+          } catch (error) {
+            console.error('Error fetching dashboard data:', error);
+          }
+        },
+        
+        startAutoRefresh() {
+          if (this.refreshInterval) return;
+          this.refreshInterval = setInterval(() => {
+            this.fetchDashboardData();
+          }, 10000);
+          console.log('Auto-refresh started (10s interval)');
+        },
+        
+        stopAutoRefresh() {
+          if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+            console.log('Auto-refresh stopped');
+          }
+        },
+        
+        getStatusClass(container) {
+          const stateText = (container.State || '').toLowerCase();
+          const statusText = (container.Status || '').toLowerCase();
+          const isRunning = stateText === 'running' || statusText.startsWith('up');
+          const isRestarting = stateText === 'restarting' || statusText.includes('restarting');
+          
+          if (isRestarting) return 'status-pill status-pill-restarting';
+          if (isRunning) return 'status-pill status-pill-running';
+          return 'status-pill status-pill-stopped';
+        },
+        
+        getStatusLabel(container) {
+          // Check for pending action first
+          const pending = this.pendingActions[container.ID];
+          if (pending) {
+            const actionLabel = pending.action.charAt(0).toUpperCase() + pending.action.slice(1);
+            return `${actionLabel}...`;
+          }
+          
+          const stateText = (container.State || '').toLowerCase();
+          const statusText = (container.Status || '').toLowerCase();
+          const isRunning = stateText === 'running' || statusText.startsWith('up');
+          const isRestarting = stateText === 'restarting' || statusText.includes('restarting');
+          const isStopped = stateText === 'exited' || stateText === 'dead' || statusText.startsWith('exited') || statusText.startsWith('dead');
+          
+          // Check for health status
+          const healthMatch = (container.Status || '').match(/\(([^)]+)\)/);
+          if (healthMatch && statusText.startsWith('up')) {
+            const rawHealth = healthMatch[1].trim().replace(/^health:\s*/i, '');
+            const healthLower = rawHealth.toLowerCase();
+            if (healthLower === 'healthy' || healthLower === 'unhealthy' || healthLower === 'starting') {
+              return rawHealth.charAt(0).toUpperCase() + rawHealth.slice(1).toLowerCase();
+            }
+          }
+          
+          if (isRestarting) return 'Restarting';
+          if (isRunning) return 'Running';
+          if (isStopped) return 'Stopped';
+          
+          const stateLabel = stateText ? (stateText.charAt(0).toUpperCase() + stateText.slice(1)) : '';
+          return stateLabel || 'Unknown';
+        },
+        
+        getUptime(container) {
+          const stateText = (container.State || '').toLowerCase();
+          const statusText = (container.Status || '').toLowerCase();
+          const isRunning = stateText === 'running' || statusText.startsWith('up');
+          
+          if (!isRunning) return '-';
+          
+          const statusHasUpPrefix = /^up\s+/i.test(container.Status || '');
+          if (statusHasUpPrefix) {
+            return (container.Status || '').replace(/^Up\s+/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim() || '-';
+          }
+          
+          return (container.RunningFor || '').trim() || '-';
+        },
+        
+        isRunning(container) {
+          const stateText = (container.State || '').toLowerCase();
+          const statusText = (container.Status || '').toLowerCase();
+          return stateText === 'running' || statusText.startsWith('up');
+        },
+        
+        isContainerPending(container) {
+          // Check if this container has a pending action
+          return !!this.pendingActions[container.ID];
+        },
+        
+        areAllGroupContainersDisabled(groupKey) {
+          const groupContainers = this.getGroupContainers(groupKey);
+          if (groupContainers.length === 0) return true;
+          if (!<%= can.canRestartContainers %>) return true;
+          
+          // All containers in group are disabled if they all have pending actions
+          return groupContainers.every(c => this.isContainerPending(c));
+        },
+        
+        toggleSelectAll() {
+          if (this.selectAll) {
+            // Select all containers that are not disabled/pending
+            const selectableContainers = this.containers
+              .filter(c => !this.isContainerPending(c))
+              .map(c => c.Names);
+            this.selectedContainers = new Set(selectableContainers);
+          } else {
+            // Deselect all
+            this.selectedContainers = new Set();
+          }
+        },
+        
+        handleRemove(event) {
+          if (!confirm('Remove selected stopped containers? This permanently deletes container entries.')) {
+            event.preventDefault();
+          }
+        },
+        
+        handleStart(event) {
+          if (!confirm('Start selected containers?')) {
+            event.preventDefault();
+          }
+        },
+        
+        handleStop(event) {
+          if (!confirm('Stop selected containers? This may interrupt service.')) {
+            event.preventDefault();
+          }
+        },
+        
+        handleRestart(event) {
+          if (!confirm('Restart selected containers? This may briefly interrupt service.')) {
+            event.preventDefault();
+          }
+        },
+        
+        getGroupContainers(groupKey) {
+          const group = this.groupedContainers.find(g => g.key === groupKey);
+          return group ? group.containers : [];
+        },
+        
+        isGroupSelected(groupKey) {
+          const groupContainers = this.getGroupContainers(groupKey);
+          if (groupContainers.length === 0) return false;
+          
+          return groupContainers.every(container => 
+            this.selectedContainers.has(container.Names)
+          );
+        },
+        
+        isGroupIndeterminate(groupKey) {
+          const groupContainers = this.getGroupContainers(groupKey);
+          if (groupContainers.length === 0) return false;
+          
+          const selectedCount = groupContainers.filter(container =>
+            this.selectedContainers.has(container.Names)
+          ).length;
+          
+          return selectedCount > 0 && selectedCount < groupContainers.length;
+        },
+        
+        toggleGroupSelection(groupKey) {
+          const groupContainers = this.getGroupContainers(groupKey);
+          const allSelected = this.isGroupSelected(groupKey);
+          
+          if (allSelected) {
+            // Deselect all containers in this group
+            groupContainers.forEach(container => {
+              this.selectedContainers.delete(container.Names);
+            });
+          } else {
+            // Select all containers in this group that are not disabled/pending
+            groupContainers.forEach(container => {
+              if (!this.isContainerPending(container)) {
+                this.selectedContainers.add(container.Names);
+              }
+            });
+          }
+          
+          // Force reactivity update
+          this.selectedContainers = new Set(this.selectedContainers);
+          
+          // Update the "select all" checkbox state
+          this.updateSelectAllState();
+        },
+        
+        updateSelectAllState() {
+          const allSelected = this.containers.length > 0 && 
+            this.containers.every(c => this.selectedContainers.has(c.Names));
+          this.selectAll = allSelected;
+        }
+      }
+    }).mount('#app');
+
+    // Background image
     (() => {
       const configuredBackground = document.body.getAttribute('data-hs-bg-image') || '';
       if (configuredBackground) {
-        const escapedPath = configuredBackground.replace(/'/g, "\\'");
-        document.body.style.setProperty('--hs-bg-image', `url('${escapedPath}')`);
+        document.body.style.setProperty('--hs-bg-image', `url('${configuredBackground.replace(/'/g, "\\'")}')` );
       }
+    })();
 
+    // Flash alerts
+    (() => {
       const flashAlerts = Array.from(document.querySelectorAll('.hs-flash-alert'));
       if (flashAlerts.length) {
-        window.setTimeout(() => {
+        setTimeout(() => {
           flashAlerts.forEach((alertEl) => {
             alertEl.classList.add('hs-flash-alert-hidden');
-            window.setTimeout(() => {
-              alertEl.remove();
-            }, 250);
+            setTimeout(() => alertEl.remove(), 250);
           });
         }, 5000);
       }
-
-      const toggleAll = document.getElementById('toggle-all-containers');
-      const containerCheckboxes = Array.from(document.querySelectorAll('.container-checkbox'));
-      const groupCheckboxes = Array.from(document.querySelectorAll('.group-checkbox'));
-      const selectedBar = document.getElementById('selected-action-bar');
-      const selectedCount = document.getElementById('selected-count');
-      const selectedInputsRemove = document.getElementById('selected-container-inputs-remove');
-      const selectedInputsStart = document.getElementById('selected-container-inputs-start');
-      const selectedInputsStop = document.getElementById('selected-container-inputs-stop');
-      const selectedInputsRestart = document.getElementById('selected-container-inputs-restart');
-      const bulkRemoveButton = document.getElementById('bulk-remove-button');
-      const bulkStartButton = document.getElementById('bulk-start-button');
-      const bulkStopButton = document.getElementById('bulk-stop-button');
-      const bulkRestartButton = document.getElementById('bulk-restart-button');
-
-      if (
-        !toggleAll ||
-        !selectedBar ||
-        !selectedCount ||
-        !selectedInputsRemove ||
-        !selectedInputsStart ||
-        !selectedInputsStop ||
-        !selectedInputsRestart ||
-        !bulkRemoveButton ||
-        !bulkStartButton ||
-        !bulkStopButton ||
-        !bulkRestartButton
-      ) {
-        return;
-      }
-
-      const selectableContainers = containerCheckboxes.filter((checkbox) => !checkbox.disabled);
-      const selectableGroups = groupCheckboxes.filter((checkbox) => !checkbox.disabled);
-
-      const getGroupContainers = (groupKey) =>
-        selectableContainers.filter((checkbox) => checkbox.dataset.groupKey === groupKey);
-
-      const setGroupState = (groupCheckbox) => {
-        const groupItems = getGroupContainers(groupCheckbox.dataset.groupKey || '');
-        const checkedCount = groupItems.filter((checkbox) => checkbox.checked).length;
-
-        groupCheckbox.checked = groupItems.length > 0 && checkedCount === groupItems.length;
-        groupCheckbox.indeterminate = checkedCount > 0 && checkedCount < groupItems.length;
-      };
-
-      const setGlobalState = () => {
-        const checkedCount = selectableContainers.filter((checkbox) => checkbox.checked).length;
-
-        toggleAll.checked = selectableContainers.length > 0 && checkedCount === selectableContainers.length;
-        toggleAll.indeterminate = checkedCount > 0 && checkedCount < selectableContainers.length;
-      };
-
-      const updateSelectedAction = () => {
-        const selected = selectableContainers.filter((checkbox) => checkbox.checked);
-        const selectedRunning = selected.filter((checkbox) => checkbox.dataset.isRunning === 'true').length;
-        const selectedStopped = selected.length - selectedRunning;
-
-        selectedCount.textContent = String(selected.length);
-        selectedBar.classList.toggle('d-none', selected.length === 0);
-        bulkRemoveButton.disabled =
-          selected.length === 0 ||
-          bulkRemoveButton.hasAttribute('data-permission-denied') ||
-          selectedRunning > 0;
-        bulkStartButton.disabled =
-          selected.length === 0 ||
-          bulkStartButton.hasAttribute('data-permission-denied') ||
-          selectedStopped === 0;
-        bulkStopButton.disabled =
-          selected.length === 0 ||
-          bulkStopButton.hasAttribute('data-permission-denied') ||
-          selectedRunning === 0;
-        bulkRestartButton.disabled = selected.length === 0 || bulkRestartButton.hasAttribute('data-permission-denied');
-
-        selectedInputsRemove.innerHTML = '';
-        selectedInputsStart.innerHTML = '';
-        selectedInputsStop.innerHTML = '';
-        selectedInputsRestart.innerHTML = '';
-        for (const checkbox of selected) {
-          const createInput = () => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'containers';
-            input.value = checkbox.value;
-            return input;
-          };
-
-          selectedInputsRemove.appendChild(createInput());
-          selectedInputsStart.appendChild(createInput());
-          selectedInputsStop.appendChild(createInput());
-          selectedInputsRestart.appendChild(createInput());
-        }
-      };
-
-      if (bulkRemoveButton.disabled) {
-        bulkRemoveButton.setAttribute('data-permission-denied', 'true');
-      }
-
-      if (bulkStartButton.disabled) {
-        bulkStartButton.setAttribute('data-permission-denied', 'true');
-      }
-
-      if (bulkStopButton.disabled) {
-        bulkStopButton.setAttribute('data-permission-denied', 'true');
-      }
-
-      if (bulkRestartButton.disabled) {
-        bulkRestartButton.setAttribute('data-permission-denied', 'true');
-      }
-
-      if (!selectableContainers.length) {
-        toggleAll.disabled = true;
-      }
-
-      selectableGroups.forEach((groupCheckbox) => {
-        const groupItems = getGroupContainers(groupCheckbox.dataset.groupKey || '');
-        if (!groupItems.length) {
-          groupCheckbox.disabled = true;
-          return;
-        }
-
-        groupCheckbox.addEventListener('change', () => {
-          groupItems.forEach((checkbox) => {
-            checkbox.checked = groupCheckbox.checked;
-          });
-          setGroupState(groupCheckbox);
-          setGlobalState();
-          updateSelectedAction();
-        });
-      });
-
-      selectableContainers.forEach((checkbox) => {
-        checkbox.addEventListener('change', () => {
-          const groupCheckbox = selectableGroups.find((item) => item.dataset.groupKey === checkbox.dataset.groupKey);
-          if (groupCheckbox) {
-            setGroupState(groupCheckbox);
-          }
-          setGlobalState();
-          updateSelectedAction();
-        });
-      });
-
-      toggleAll.addEventListener('change', () => {
-        selectableContainers.forEach((checkbox) => {
-          checkbox.checked = toggleAll.checked;
-        });
-
-        selectableGroups.forEach((groupCheckbox) => setGroupState(groupCheckbox));
-        setGlobalState();
-        updateSelectedAction();
-      });
-
-      selectableGroups.forEach((groupCheckbox) => setGroupState(groupCheckbox));
-      setGlobalState();
-      updateSelectedAction();
     })();
   </script>
 </body>

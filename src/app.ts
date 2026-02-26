@@ -58,6 +58,7 @@ import {
 } from "./lib/dashboardSettings.js";
 import { isDemoMode } from "./lib/demoMode.js";
 import { getCachedDockerData } from "./lib/dockerStatsCache.js";
+import { setPendingAction, getPendingActionsForServer } from "./lib/pendingActions.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -650,122 +651,175 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
   app.post("/logout", requireAuth, ensureCsrf, logout);
 
-  app.get("/", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
+  // Helper function to fetch dashboard data (used by both HTML and API routes)
+  async function fetchDashboardData(req: express.Request, res: express.Response) {
+    const { servers, defaultServerId } = await listRemoteServers();
+    const selectedFromSession = getActiveServerSessionId(req);
+    const { server: initiallyResolvedServer } = await resolveServerByIdOrDefault(selectedFromSession);
+    const localServer = servers.find((server) => server.id === "local") ?? servers[0];
+    let activeServer = initiallyResolvedServer;
+    let unavailableServerIds: string[] = [];
+    let fallbackError = "";
+    let containers: DockerContainer[] = [];
+    let containerStats: DockerContainerStat[] = [];
+    let hostInfo: DockerHostInfo | null = null;
+    let cacheAge = 0;
+
     try {
-      const { servers, defaultServerId } = await listRemoteServers();
-      const selectedFromSession = getActiveServerSessionId(req);
-      const { server: initiallyResolvedServer } = await resolveServerByIdOrDefault(selectedFromSession);
-      const localServer = servers.find((server) => server.id === "local") ?? servers[0];
-      let activeServer = initiallyResolvedServer;
-      let unavailableServerIds: string[] = [];
-      let fallbackError = "";
-      let containers: DockerContainer[] = [];
-      let containerStats: DockerContainerStat[] = [];
-      let hostInfo: DockerHostInfo | null = null;
-      let cacheAge = 0;
+      // Use cached Docker data with 10-second TTL
+      const cachedData = await getCachedDockerData(activeServer, async () => {
+        const [fetchedContainers, fetchedStats, fetchedHostInfo] = await Promise.all([
+          deps.listContainers(activeServer),
+          deps.listContainerStats(activeServer),
+          deps.getHostInfo(activeServer),
+        ]);
+        return {
+          containers: fetchedContainers,
+          stats: fetchedStats,
+          hostInfo: fetchedHostInfo,
+        };
+      });
 
-      try {
-        // Use cached Docker data with 10-second TTL
-        const cachedData = await getCachedDockerData(activeServer, async () => {
-          const [fetchedContainers, fetchedStats, fetchedHostInfo] = await Promise.all([
-            deps.listContainers(activeServer),
-            deps.listContainerStats(activeServer),
-            deps.getHostInfo(activeServer),
-          ]);
-          return {
-            containers: fetchedContainers,
-            stats: fetchedStats,
-            hostInfo: fetchedHostInfo,
-          };
-        });
+      containers = cachedData.containers;
+      containerStats = cachedData.stats;
+      hostInfo = cachedData.hostInfo;
+      cacheAge = cachedData.cacheAge;
+    } catch (primaryError) {
+      if (activeServer.isLocal || !localServer || activeServer.id === localServer.id) {
+        if (!activeServer.isLocal || !isLocalDockerUnavailableError(primaryError)) {
+          throw primaryError;
+        }
 
-        containers = cachedData.containers;
-        containerStats = cachedData.stats;
-        hostInfo = cachedData.hostInfo;
-        cacheAge = cachedData.cacheAge;
-      } catch (primaryError) {
-        if (activeServer.isLocal || !localServer || activeServer.id === localServer.id) {
-          if (!activeServer.isLocal || !isLocalDockerUnavailableError(primaryError)) {
-            throw primaryError;
+        fallbackError = "Docker engine is unavailable on this machine. Start Docker Desktop and refresh the dashboard.";
+      } else {
+        unavailableServerIds = [activeServer.id];
+        const failedServerName = activeServer.name || activeServer.host || activeServer.id;
+        activeServer = localServer;
+        fallbackError = `Failed to connect to ${failedServerName}. Marked as [unavialable] and switched to local server.`;
+
+        try {
+          // Use cached Docker data for fallback local server
+          const cachedData = await getCachedDockerData(activeServer, async () => {
+            const [fetchedContainers, fetchedStats, fetchedHostInfo] = await Promise.all([
+              deps.listContainers(activeServer),
+              deps.listContainerStats(activeServer),
+              deps.getHostInfo(activeServer),
+            ]);
+            return {
+              containers: fetchedContainers,
+              stats: fetchedStats,
+              hostInfo: fetchedHostInfo,
+            };
+          });
+
+          containers = cachedData.containers;
+          containerStats = cachedData.stats;
+          hostInfo = cachedData.hostInfo;
+          cacheAge = cachedData.cacheAge;
+        } catch (fallbackLocalError) {
+          if (!isLocalDockerUnavailableError(fallbackLocalError)) {
+            throw fallbackLocalError;
           }
 
-          fallbackError = "Docker engine is unavailable on this machine. Start Docker Desktop and refresh the dashboard.";
-        } else {
-          unavailableServerIds = [activeServer.id];
-          const failedServerName = activeServer.name || activeServer.host || activeServer.id;
-          activeServer = localServer;
-          fallbackError = `Failed to connect to ${failedServerName}. Marked as [unavialable] and switched to local server.`;
-
-          try {
-            // Use cached Docker data for fallback local server
-            const cachedData = await getCachedDockerData(activeServer, async () => {
-              const [fetchedContainers, fetchedStats, fetchedHostInfo] = await Promise.all([
-                deps.listContainers(activeServer),
-                deps.listContainerStats(activeServer),
-                deps.getHostInfo(activeServer),
-              ]);
-              return {
-                containers: fetchedContainers,
-                stats: fetchedStats,
-                hostInfo: fetchedHostInfo,
-              };
-            });
-
-            containers = cachedData.containers;
-            containerStats = cachedData.stats;
-            hostInfo = cachedData.hostInfo;
-            cacheAge = cachedData.cacheAge;
-          } catch (fallbackLocalError) {
-            if (!isLocalDockerUnavailableError(fallbackLocalError)) {
-              throw fallbackLocalError;
-            }
-
-            fallbackError = `${fallbackError} Docker engine is unavailable on this machine. Start Docker Desktop and refresh the dashboard.`;
-          }
+          fallbackError = `${fallbackError} Docker engine is unavailable on this machine. Start Docker Desktop and refresh the dashboard.`;
         }
       }
+    }
 
-      setActiveServerSession(res, req, activeServer.id);
+    setActiveServerSession(res, req, activeServer.id);
 
-      const metricsWarning = "";
-      const statsLookup = buildContainerStatsLookup(containerStats);
-      const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer), statsLookup);
-      const serverMetrics = buildServerMetrics(hostInfo, containerStats, metricsWarning);
+    const metricsWarning = "";
+    const statsLookup = buildContainerStatsLookup(containerStats);
+    const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer), statsLookup);
+    const serverMetrics = buildServerMetrics(hostInfo, containerStats, metricsWarning);
+
+    return {
+      servers,
+      defaultServerId,
+      activeServer,
+      unavailableServerIds,
+      fallbackError,
+      containers,
+      groupedContainers,
+      serverMetrics,
+      metricsWarning,
+      cacheAge,
+    };
+  }
+
+  app.get("/", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
+    try {
+      // For initial page load, just send empty data - Vue will fetch it
+      const { servers, defaultServerId } = await listRemoteServers();
+      const selectedFromSession = getActiveServerSessionId(req);
+      const { server: activeServer } = await resolveServerByIdOrDefault(selectedFromSession);
+      
       const can = getPermissionFlags(req.user);
       const { notice, error } = consumeFlashSession(res, req);
-      const combinedError = [fallbackError, error].filter(Boolean).join(" ");
 
       res.render("dashboard", {
         user: req.user,
         can,
-        containers,
-        groupedContainers,
-        serverMetrics,
-        metricsWarning,
         csrfToken: req.csrfToken,
         notice,
-        error: combinedError,
+        error,
         servers,
         activeServerId: activeServer.id,
         defaultServerId,
-        unavailableServerIds,
       });
     } catch (e) {
       const error = e as Error;
       res.status(500).render("dashboard", {
         user: req.user,
         can: getPermissionFlags(req.user),
-        containers: [],
-        groupedContainers: [],
-        serverMetrics: createUnavailableServerMetrics(""),
-        metricsWarning: "",
         csrfToken: req.csrfToken,
         notice: "",
         error: `Dashboard error: ${error.message}`,
         servers: [],
         activeServerId: "",
         defaultServerId: "local",
-        unavailableServerIds: [],
+      });
+    }
+  });
+
+  // API endpoint for auto-refresh (returns JSON)
+  app.get("/api/dashboard", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
+    try {
+      const dashboardData = await fetchDashboardData(req, res);
+      const can = getPermissionFlags(req.user);
+
+      // Get pending actions for the active server
+      const pendingActionsMap = getPendingActionsForServer(dashboardData.activeServer.id);
+      const pendingActions: Record<string, { action: string; timestamp: number }> = {};
+      for (const [containerId, pending] of pendingActionsMap.entries()) {
+        pendingActions[containerId] = {
+          action: pending.action,
+          timestamp: pending.timestamp,
+        };
+      }
+
+      res.json({
+        success: true,
+        data: {
+          containers: dashboardData.containers,
+          groupedContainers: dashboardData.groupedContainers,
+          serverMetrics: dashboardData.serverMetrics,
+          metricsWarning: dashboardData.metricsWarning,
+          servers: dashboardData.servers,
+          activeServerId: dashboardData.activeServer.id,
+          defaultServerId: dashboardData.defaultServerId,
+          unavailableServerIds: dashboardData.unavailableServerIds,
+          cacheAge: dashboardData.cacheAge,
+          pendingActions,
+          timestamp: Date.now(),
+        },
+        permissions: can,
+      });
+    } catch (e) {
+      const error = e as Error;
+      res.status(500).json({
+        success: false,
+        error: error.message,
       });
     }
   });
@@ -1170,6 +1224,9 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           throw new Error("Container must be stopped before removing");
         }
 
+        // Set pending action before executing
+        setPendingAction(server.id, target.ID, "removing");
+        
         await deps.removeContainerById(containerId, server);
 
         console.info("AUDIT container_remove", {
@@ -1208,6 +1265,14 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       try {
         const { containerId } = req.params;
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        
+        // Get container to find its ID for pending action
+        const containers = await deps.listContainers(server);
+        const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+        if (target) {
+          setPendingAction(server.id, target.ID, "starting");
+        }
+        
         await deps.startContainerById(containerId, server);
 
         console.info("AUDIT container_start", {
@@ -1246,6 +1311,14 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       try {
         const { containerId } = req.params;
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        
+        // Get container to find its ID for pending action
+        const containers = await deps.listContainers(server);
+        const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+        if (target) {
+          setPendingAction(server.id, target.ID, "stopping");
+        }
+        
         await deps.stopContainerById(containerId, server);
 
         console.info("AUDIT container_stop", {
@@ -1284,6 +1357,14 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       try {
         const { containerId } = req.params;
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        
+        // Get container to find its ID for pending action
+        const containers = await deps.listContainers(server);
+        const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+        if (target) {
+          setPendingAction(server.id, target.ID, "restarting");
+        }
+        
         await deps.restartContainerById(containerId, server);
 
         console.info("AUDIT container_restart", {
@@ -1349,6 +1430,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           }
 
           try {
+            setPendingAction(server.id, target.ID, "removing");
             await deps.removeContainerById(containerId, server);
             removed.push(containerId);
           } catch {
@@ -1433,9 +1515,14 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
       try {
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        const containers = await deps.listContainers(server);
 
         for (const containerId of selectedContainerIds) {
           try {
+            const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+            if (target) {
+              setPendingAction(server.id, target.ID, "starting");
+            }
             await deps.startContainerById(containerId, server);
             started.push(containerId);
           } catch {
@@ -1505,9 +1592,14 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
       try {
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        const containers = await deps.listContainers(server);
 
         for (const containerId of selectedContainerIds) {
           try {
+            const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+            if (target) {
+              setPendingAction(server.id, target.ID, "stopping");
+            }
             await deps.stopContainerById(containerId, server);
             stopped.push(containerId);
           } catch {
@@ -1577,9 +1669,14 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
       try {
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        const containers = await deps.listContainers(server);
 
         for (const containerId of selectedContainerIds) {
           try {
+            const target = containers.find((container) => containerMatchesIdentifier(container, containerId));
+            if (target) {
+              setPendingAction(server.id, target.ID, "restarting");
+            }
             await deps.restartContainerById(containerId, server);
             restarted.push(containerId);
           } catch {
