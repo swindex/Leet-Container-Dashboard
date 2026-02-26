@@ -51,8 +51,8 @@ jobs:
         echo "Starting demo-server with docker-compose"
         ssh -i /tmp/private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "
         cd /opt/demo-server
-        docker-compose down || true
-        docker-compose up -d --build
+        docker compose down || true
+        docker compose up -d --build
         "
 
     - name: Configure Nginx for LCD (Home Server)
@@ -88,11 +88,11 @@ jobs:
         cd /opt/demo-containers
         
         # Start demo containers
-        docker-compose -f docker-compose-set1.yml down || true
-        docker-compose -f docker-compose-set1.yml up -d
+        docker compose -f docker-compose-set1.yml down || true
+        docker compose -f docker-compose-set1.yml up -d
 
-        docker-compose -f docker-compose-set2.yml down || true
-        docker-compose -f docker-compose-set2.yml up -d
+        docker compose -f docker-compose-set2.yml down || true
+        docker compose -f docker-compose-set2.yml up -d
 
         # Show running containers
         docker ps -a | grep demo-
