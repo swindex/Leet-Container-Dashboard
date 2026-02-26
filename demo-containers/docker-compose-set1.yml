@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  demo-nginx:
+    image: nginx:alpine
+    container_name: demo-nginx
+    # No ports exposed - internal only
+    networks:
+      - demo-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  demo-redis:
+    image: redis:alpine
+    container_name: demo-redis
+    # No ports exposed - internal only
+    networks:
+      - demo-network
+    restart: unless-stopped
+    command: redis-server --save "" --appendonly no
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  demo-network:
+    driver: bridge

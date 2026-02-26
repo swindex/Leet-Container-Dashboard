@@ -1,0 +1,99 @@
+name: Deploy Home Server to lcd.snapwebapps.com
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: lcd-server-deployment
+      cancel-in-progress: false
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup SSH key
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      run: |
+        echo "$SSH_PRIVATE_KEY" > /tmp/private_key
+        chmod 600 /tmp/private_key
+
+    - name: Deploy Demo Containers
+      env:
+        DROPLET_IP: ${{ secrets.DROPLET_IP }}
+      run: |
+        echo "Deploying demo-containers to /opt/demo-containers/"
+        rsync -avz -e "ssh -i /tmp/private_key -o StrictHostKeyChecking=no" --delete demo-containers/ root@$DROPLET_IP:/opt/demo-containers/
+
+    - name: Deploy Demo Server App with Docker Compose
+      env:
+        DROPLET_IP: ${{ secrets.DROPLET_IP }}
+      run: |
+        echo "Deploying demo-server application files"
+        rsync -avz -e "ssh -i /tmp/private_key -o StrictHostKeyChecking=no" \
+          --exclude 'node_modules' \
+          --exclude '.git' \
+          --exclude '.github' \
+          --exclude 'test' \
+          --exclude 'demo-containers' \
+          --exclude 'demo-server' \
+          ./ root@$DROPLET_IP:/opt/demo-server/
+
+        echo "Copy demo-server docker-compose.yml"
+        rsync -avz -e "ssh -i /tmp/private_key -o StrictHostKeyChecking=no" demo-server/docker-compose.yml root@$DROPLET_IP:/opt/demo-server/docker-compose.yml
+
+        echo "Starting demo-server with docker-compose"
+        ssh -i /tmp/private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "
+        cd /opt/demo-server
+        docker-compose down || true
+        docker-compose up -d --build
+        "
+
+    - name: Configure Nginx for LCD (Home Server)
+      env:
+        DROPLET_IP: ${{ secrets.DROPLET_IP }}
+      run: |
+        DOMAIN="lcd.snapwebapps.com"
+        echo "Configuring Nginx and SSL for $DOMAIN"
+
+        echo "Copy Nginx configuration for $DOMAIN"
+        rsync -avz -e "ssh -i /tmp/private_key -o StrictHostKeyChecking=no" demo-server/$DOMAIN root@$DROPLET_IP:/etc/nginx/sites-available/$DOMAIN
+
+        echo "SSH into Droplet to enable site and obtain SSL certificate"
+        ssh -i /tmp/private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "
+
+        # Enable Nginx configuration
+        sudo ln -s -f /etc/nginx/sites-available/$DOMAIN /etc/nginx/sites-enabled/
+        sudo nginx -t
+        sudo systemctl restart nginx
+
+        # Obtain SSL certificate with Certbot
+        sudo certbot --nginx --non-interactive --agree-tos --email zero.divide.net@gmail.com -d $DOMAIN
+        sudo nginx -t
+        sudo systemctl reload nginx
+        "
+
+    - name: Start Demo Containers
+      env:
+        DROPLET_IP: ${{ secrets.DROPLET_IP }}
+      run: |
+        echo "Starting demo containers"
+        ssh -i /tmp/private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "
+        cd /opt/demo-containers
+        
+        # Start demo containers
+        docker-compose -f docker-compose-set1.yml down || true
+        docker-compose -f docker-compose-set1.yml up -d
+
+        docker-compose -f docker-compose-set2.yml down || true
+        docker-compose -f docker-compose-set2.yml up -d
+
+        # Show running containers
+        docker ps -a | grep demo-
+        "

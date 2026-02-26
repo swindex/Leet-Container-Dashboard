@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  demo-postgres:
+    image: postgres:alpine
+    container_name: demo-postgres
+    # No ports exposed - internal only
+    environment:
+      - POSTGRES_USER=demouser
+      - POSTGRES_PASSWORD=demopass
+      - POSTGRES_DB=demodb
+    networks:
+      - demo-network
+    restart: unless-stopped
+    # No persistent volumes - data is ephemeral
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demouser"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  demo-network:
+    driver: bridge
