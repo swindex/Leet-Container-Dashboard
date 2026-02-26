@@ -2,9 +2,7 @@ name: Deploy Home Server to lcd.snapwebapps.com
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
