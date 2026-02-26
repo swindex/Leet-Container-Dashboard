@@ -11,8 +11,9 @@ Leet Container Dashboard is a TypeScript + Bun web dashboard for managing Docker
 Try out the live demo at: **https://lcd.snapwebapps.com/**
 
 **Login credentials:**
-- Username: `test`
-- Password: `testtest`
+- **Admin:** Username: `test-admin`, Password: `testtest`
+- **Operator:** Username: `test-operator`, Password: `testtest`
+- **Viewer:** Username: `test`, Password: `testtest`
 
 ## Features
 
