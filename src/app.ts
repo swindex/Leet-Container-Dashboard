@@ -57,6 +57,7 @@ import {
   type DashboardTheme,
 } from "./lib/dashboardSettings.js";
 import { isDemoMode } from "./lib/demoMode.js";
+import { getCachedDockerData } from "./lib/dockerStatsCache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -659,15 +660,29 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       let unavailableServerIds: string[] = [];
       let fallbackError = "";
       let containers: DockerContainer[] = [];
-      let statsResult: PromiseSettledResult<DockerContainerStat[]> = { status: "fulfilled", value: [] };
-      let hostInfoResult: PromiseSettledResult<DockerHostInfo | null> = { status: "fulfilled", value: null };
+      let containerStats: DockerContainerStat[] = [];
+      let hostInfo: DockerHostInfo | null = null;
+      let cacheAge = 0;
 
       try {
-        containers = await deps.listContainers(activeServer);
-        [statsResult, hostInfoResult] = await Promise.allSettled([
-          deps.listContainerStats(activeServer),
-          deps.getHostInfo(activeServer),
-        ]);
+        // Use cached Docker data with 10-second TTL
+        const cachedData = await getCachedDockerData(activeServer, async () => {
+          const [fetchedContainers, fetchedStats, fetchedHostInfo] = await Promise.all([
+            deps.listContainers(activeServer),
+            deps.listContainerStats(activeServer),
+            deps.getHostInfo(activeServer),
+          ]);
+          return {
+            containers: fetchedContainers,
+            stats: fetchedStats,
+            hostInfo: fetchedHostInfo,
+          };
+        });
+
+        containers = cachedData.containers;
+        containerStats = cachedData.stats;
+        hostInfo = cachedData.hostInfo;
+        cacheAge = cachedData.cacheAge;
       } catch (primaryError) {
         if (activeServer.isLocal || !localServer || activeServer.id === localServer.id) {
           if (!activeServer.isLocal || !isLocalDockerUnavailableError(primaryError)) {
@@ -682,11 +697,24 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           fallbackError = `Failed to connect to ${failedServerName}. Marked as [unavialable] and switched to local server.`;
 
           try {
-            containers = await deps.listContainers(activeServer);
-            [statsResult, hostInfoResult] = await Promise.allSettled([
-              deps.listContainerStats(activeServer),
-              deps.getHostInfo(activeServer),
-            ]);
+            // Use cached Docker data for fallback local server
+            const cachedData = await getCachedDockerData(activeServer, async () => {
+              const [fetchedContainers, fetchedStats, fetchedHostInfo] = await Promise.all([
+                deps.listContainers(activeServer),
+                deps.listContainerStats(activeServer),
+                deps.getHostInfo(activeServer),
+              ]);
+              return {
+                containers: fetchedContainers,
+                stats: fetchedStats,
+                hostInfo: fetchedHostInfo,
+              };
+            });
+
+            containers = cachedData.containers;
+            containerStats = cachedData.stats;
+            hostInfo = cachedData.hostInfo;
+            cacheAge = cachedData.cacheAge;
           } catch (fallbackLocalError) {
             if (!isLocalDockerUnavailableError(fallbackLocalError)) {
               throw fallbackLocalError;
@@ -699,12 +727,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
       setActiveServerSession(res, req, activeServer.id);
 
-      const metricsWarning = (statsResult.status === "rejected" || hostInfoResult.status === "rejected")
-        ? "Resource metrics are temporarily unavailable for this server."
-        : "";
-
-      const containerStats = statsResult.status === "fulfilled" ? statsResult.value : [];
-      const hostInfo = hostInfoResult.status === "fulfilled" ? hostInfoResult.value : null;
+      const metricsWarning = "";
       const statsLookup = buildContainerStatsLookup(containerStats);
       const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer), statsLookup);
       const serverMetrics = buildServerMetrics(hostInfo, containerStats, metricsWarning);
