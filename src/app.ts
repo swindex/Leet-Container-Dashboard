@@ -56,6 +56,7 @@ import {
   type DashboardSettings,
   type DashboardTheme,
 } from "./lib/dashboardSettings.js";
+import { isDemoMode } from "./lib/demoMode.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -616,6 +617,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       res.locals.pageBodyClass = bodyClassParts.join(" ");
       res.locals.pageBackgroundStyle = toSafeBackgroundStyle(dashboardSettings.backgroundImagePath);
       res.locals.pageBackgroundImagePath = dashboardSettings.backgroundImagePath;
+      res.locals.isDemoMode = isDemoMode();
       next();
     } catch {
       const fallbackSettings: DashboardSettings = { ...DEFAULT_DASHBOARD_SETTINGS };
@@ -623,6 +625,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       res.locals.pageBodyClass = `hs-body hs-theme-${fallbackSettings.theme}`;
       res.locals.pageBackgroundStyle = "";
       res.locals.pageBackgroundImagePath = "";
+      res.locals.isDemoMode = isDemoMode();
       next();
     }
   });

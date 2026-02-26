@@ -7,7 +7,6 @@ COPY package.json bun.lock* ./
 RUN bun install --production --frozen-lockfile
 
 COPY src ./src
-COPY data ./data
 
 ENV NODE_ENV=production
 EXPOSE 3000

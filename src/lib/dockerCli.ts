@@ -1,6 +1,7 @@
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { Client } from "ssh2";
+import { isDemoMode, logDemoAction } from "./demoMode.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -165,6 +166,12 @@ export async function restartContainer(containerIdOrName: string, server?: Docke
   if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
     throw new Error("Invalid container identifier.");
   }
+  
+  if (isDemoMode()) {
+    logDemoAction("restartContainer", { container: containerIdOrName, server: server?.host || "local" });
+    return;
+  }
+  
   await execDocker(["restart", containerIdOrName], server);
 }
 
@@ -172,6 +179,12 @@ export async function startContainer(containerIdOrName: string, server?: DockerT
   if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
     throw new Error("Invalid container identifier.");
   }
+  
+  if (isDemoMode()) {
+    logDemoAction("startContainer", { container: containerIdOrName, server: server?.host || "local" });
+    return;
+  }
+  
   await execDocker(["start", containerIdOrName], server);
 }
 
@@ -179,6 +192,12 @@ export async function stopContainer(containerIdOrName: string, server?: DockerTa
   if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
     throw new Error("Invalid container identifier.");
   }
+  
+  if (isDemoMode()) {
+    logDemoAction("stopContainer", { container: containerIdOrName, server: server?.host || "local" });
+    return;
+  }
+  
   await execDocker(["stop", containerIdOrName], server);
 }
 
@@ -186,6 +205,12 @@ export async function removeContainer(containerIdOrName: string, server?: Docker
   if (!CONTAINER_ID_OR_NAME_PATTERN.test(containerIdOrName)) {
     throw new Error("Invalid container identifier.");
   }
+  
+  if (isDemoMode()) {
+    logDemoAction("removeContainer", { container: containerIdOrName, server: server?.host || "local" });
+    return;
+  }
+  
   await execDocker(["rm", containerIdOrName], server);
 }
 

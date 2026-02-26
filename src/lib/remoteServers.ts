@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import crypto from "crypto";
 import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
+import { isDemoMode, logDemoAction } from "./demoMode.js";
 
 const DEFAULT_REMOTE_SERVERS_PATH = resolveDataPath("remoteServers.json");
 const ENCRYPTED_PASSWORD_PREFIX = "enc:v1";
@@ -204,6 +205,15 @@ async function readRemoteServersFile(filePath = getRemoteServersFilePath()): Pro
 
 async function writeRemoteServersFile(data: RemoteServersFile, filePath = getRemoteServersFilePath()): Promise<void> {
   const validated = validateRemoteServersFile(data);
+  
+  if (isDemoMode()) {
+    logDemoAction("writeRemoteServersFile", { 
+      serverCount: validated.servers.length,
+      defaultServerId: validated.defaultServerId 
+    });
+    return;
+  }
+  
   const encrypted = encryptRemoteServerPasswords(validated);
   await fs.writeFile(filePath, JSON.stringify(encrypted, null, 2), "utf-8");
 }

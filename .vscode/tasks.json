@@ -14,6 +14,13 @@
 			"problemMatcher": [],
 			"label": "npm: dev",
 			"detail": "kill-port 3000 && bun --watch src/index.ts"
+		},
+		{
+			"type": "npm",
+			"script": "docker-dev",
+			"problemMatcher": [],
+			"label": "npm: docker-dev",
+			"detail": "docker compose -f docker-compose.dev.yml up --build"
 		}
 	]
 }

@@ -43,10 +43,25 @@ jobs:
           --exclude 'test' \
           --exclude 'demo-containers' \
           --exclude 'demo-server' \
+          --exclude 'data' \
           ./ root@$DROPLET_IP:/opt/demo-server/
 
         echo "Copy demo-server docker-compose.yml"
         rsync -avz -e "ssh -i /tmp/private_key -o StrictHostKeyChecking=no" demo-server/docker-compose.yml root@$DROPLET_IP:/opt/demo-server/docker-compose.yml
+
+        echo "Setup initial data directory if it doesn't exist"
+        ssh -i /tmp/private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "
+        if [ ! -d /opt/demo-server/data ]; then
+          echo 'Data directory does not exist, creating initial setup...'
+          mkdir -p /opt/demo-server/data/uploads/backgrounds
+        else
+          echo 'Data directory already exists, preserving existing data'
+        fi
+        "
+
+        echo "Copy initial data files only if they don't exist"
+        rsync -avz -e "ssh -i /tmp/private_key -o StrictHostKeyChecking=no" --ignore-existing \
+          data/ root@$DROPLET_IP:/opt/demo-server/data/
 
         echo "Starting demo-server with docker-compose"
         ssh -i /tmp/private_key -o StrictHostKeyChecking=no root@$DROPLET_IP "

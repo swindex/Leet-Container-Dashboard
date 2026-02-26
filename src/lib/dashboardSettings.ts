@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
+import { isDemoMode, logDemoAction } from "./demoMode.js";
 
 export const DEFAULT_DASHBOARD_SETTINGS = {
   appTitle: "Leet Container Dashboard",
@@ -123,6 +124,12 @@ export async function getDashboardSettings(filePath = getDashboardSettingsFilePa
 
 export async function saveDashboardSettings(settings: Partial<DashboardSettings>, filePath = getDashboardSettingsFilePath()): Promise<DashboardSettings> {
   const normalized = normalizeSettings(settings);
+  
+  if (isDemoMode()) {
+    logDemoAction("saveDashboardSettings", { settings: normalized });
+    return normalized;
+  }
+  
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, JSON.stringify(normalized, null, 2), "utf-8");
   return normalized;

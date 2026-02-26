@@ -12,9 +12,9 @@ services:
       - COOKIE_NAME=hsp_session
       - COOKIE_SECRET=change-this-to-a-long-random-string
       - REMOTE_SERVERS_KEY=change-this-to-a-long-random-string
+      - DEMO_MODE=true
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
       - ./:/app
-    command: bun run dev
     restart: unless-stopped

@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { hasPermission, type Permission, type Role, PERMISSIONS, ROLES } from "./rbac.js";
 import { resolveDataPath } from "./dataPaths.js";
+import { isDemoMode, logDemoAction } from "./demoMode.js";
 
 const SESSION_COOKIE_NAME = "hs_session";
 const DEFAULT_USERS_PATH = resolveDataPath("users.json");
@@ -97,6 +98,11 @@ async function readUsersFile(usersFilePath = getUsersFilePath()): Promise<UsersF
 }
 
 async function writeUsersFile(data: UsersFile, usersFilePath = getUsersFilePath()): Promise<void> {
+  if (isDemoMode()) {
+    logDemoAction("writeUsersFile", { userCount: data.users.length });
+    return;
+  }
+  
   await fs.writeFile(usersFilePath, JSON.stringify(data, null, 2), "utf-8");
 }
 

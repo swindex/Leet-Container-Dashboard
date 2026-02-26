@@ -30,6 +30,9 @@ The GitHub Actions workflow (`.github/workflows/build-deploy-app.yml`) handles d
 1. **Setup SSH** - Configures SSH key for droplet access
 2. **Deploy Demo Containers** - Syncs demo-containers to `/opt/demo-containers/`
 3. **Deploy Demo Server** - Syncs demo-server files to `/opt/demo-server/` and starts with docker-compose
+   - **Data Directory Preservation**: The `data/` directory is excluded from rsync to preserve existing user data, settings, and secrets
+   - **Initial Setup**: If no data directory exists (first-time deployment), creates the directory structure and copies initial data files
+   - **Subsequent Deployments**: Existing data files are preserved; only missing files are copied using `--ignore-existing` flag
 4. **Configure LCD Nginx** - Sets up nginx and SSL for lcd.snapwebapps.com
 5. **Start Demo Containers** - Launches demo containers with docker-compose
 
