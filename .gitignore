@@ -1,5 +1,4 @@
 node_modules/
-data/secret/
-data/test/
+data-test/
 .env
 data/

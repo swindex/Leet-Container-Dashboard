@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+bun.lock
+
+# Secret Data
+data/
+
+# Development and test data
+data/test/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Git
+.git/
+.github/
+.gitignore
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# Test files
+test/
+*.test.ts
+*.test.js
+
+# Documentation
+*.md
+screenshot.png
+
+# Demo deployment files
+demo-server/
+demo-containers/
+
+# Build artifacts
+dist/
+build/
+*.log
+

@@ -1,8 +1,10 @@
 services:
   panel:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: eldargerfanov/leet-container-dashboard:latest
+    # Uncomment below to build locally instead of using Docker Hub image:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
@@ -11,9 +13,8 @@ services:
       - COOKIE_NAME=hsp_session
       - COOKIE_SECRET=change-this-to-a-long-random-string
       - REMOTE_SERVERS_KEY=change-this-to-a-long-random-string
-      # - DEMO_MODE=false
+      # - DEMO_MODE=false # Set to true to enable demo mode with sample containers and data. Not for production.
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./:/app
     restart: unless-stopped

@@ -41,9 +41,57 @@ Try out the live demo at: **https://lcd.snapwebapps.com/**
 - [Bun](https://bun.sh/) (If you want to develop)
 - Docker (for container data/actions)
 
-## Just Run: Run with Docker
+## Quick Start: Docker Hub (Recommended)
 
-If you want the most reproducible setup, use Docker Compose.
+The easiest way to get started is using the pre-built Docker image from Docker Hub:
+
+### Using Docker Run
+
+```bash
+docker run -d \
+  --name leet-container-dashboard \
+  -p 3000:3000 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v $(pwd)/data:/app/data \
+  -e COOKIE_SECRET=your-long-random-secret-here \
+  -e REMOTE_SERVERS_KEY=your-long-random-key-here \
+  eldargerfanov/leet-container-dashboard:latest
+```
+
+### Using Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+services:
+  panel:
+    image: eldargerfanov/leet-container-dashboard:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - COOKIE_SECRET=change-this-to-a-long-random-string
+      - REMOTE_SERVERS_KEY=change-this-to-a-long-random-string
+    volumes:
+      - ./data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+```
+
+Then run:
+
+```bash
+docker compose up -d
+```
+
+**First Run:** The container will automatically seed your data directory with default configuration files, dashboard settings, and a sample background image.
+
+**Data Persistence:** All your settings, users, and uploads are stored in the mounted `./data` directory and will persist across container restarts.
+
+Open `http://localhost:3000` after the container starts.
+
+## Build from Source: Run with Docker
+
+If you want to build the image locally instead of using Docker Hub:
 
 ### Production-style run
 
