@@ -78,9 +78,7 @@
                 </div>
               </div>
               <div class="d-flex align-items-center gap-2">
-                <span v-if="server.id === defaultServerId" class="badge text-bg-warning">
-                  <i class="fa-solid fa-star me-1"></i>Default
-                </span>
+                <span v-if="server.id === defaultServerId" class="badge text-bg-warning"><i class="fa-solid fa-star me-1"></i></span>
                 <span v-if="unavailableServerIds.includes(server.id)" class="badge text-bg-danger">[unavailable]</span>
                 <span v-if="server.id === activeServerId" class="badge text-bg-success">Active</span>
                 <form v-else-if="<%= can.canSwitchServers %> && server.enabled" action="/servers/switch" method="post" class="d-inline">
@@ -202,8 +200,11 @@
                                :disabled="areAllContainersDisabled"
                                aria-label="Select all containers" />
                       </th>
-                      <th>Name</th>
-                      <th v-if="<%= dashboardSettings.showImageName !== false %>">Image</th>
+                      <th>
+                        <span>Name</span>
+                        <span v-if="<%= dashboardSettings.showImageName !== false %>">/Image</span>
+                      </th>
+                      
                       <th>Uptime</th>
                       <th>Status</th>
                       <th v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">Resources</th>
@@ -245,7 +246,8 @@
                           </td>
                           <td>
                             <div class="fw-semibold">{{ container.Names }}</div>
-                            <small v-if="<%= dashboardSettings.showContainerHash !== false %>" class="text-muted">{{ container.ID.slice(0, 12) }}</small>
+                            <small v-if="<%= dashboardSettings.showContainerHash !== false %>" class="text-muted block">{{ container.ID.slice(0, 12) }}</small>
+                            <small v-if="<%= dashboardSettings.showImageName !== false %>" class="text-muted block">{{ container.Image }}</small>
                             <div v-if="container.serviceLinks && container.serviceLinks.length" class="service-links mt-1">
                               <a v-for="link in container.serviceLinks" :key="link.url"
                                  class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">
@@ -254,13 +256,13 @@
                               </a>
                             </div>
                           </td>
-                          <td v-if="<%= dashboardSettings.showImageName !== false %>">{{ container.Image }}</td>
                           <td>{{ getUptime(container) }}</td>
                           <td>
                             <span :class="getStatusClass(container)" :title="getStatusLabel(container)">
                               {{ getStatusLabel(container) }}
                             </span>
                           </td>
+
                           <td v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">
                             <div class="resource-block">
                               <span class="resource-item">
@@ -269,7 +271,7 @@
                               </span>
                               <span class="resource-item">
                                 <i class="fa-solid fa-memory resource-icon"></i>
-                                <strong>Memory</strong> {{ container.resourceMemory || '-' }}
+                                <strong>Mem</strong> {{ container.resourceMemory || '-' }}
                               </span>
                               <span class="resource-item">
                                 <i class="fa-solid fa-network-wired resource-icon"></i>
@@ -282,6 +284,7 @@
                             </div>
                           </td>
                         </tr>
+                        
                         <tr v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-mobile-row">
                           <td class="container-select-cell"></td>
                           <td :colspan="<%= dashboardSettings.showImageName !== false ? 3 : 2 %>">
@@ -292,7 +295,7 @@
                               </span>
                               <span class="resource-item">
                                 <i class="fa-solid fa-memory resource-icon"></i>
-                                <strong>Memory</strong> {{ container.resourceMemory || '-' }}
+                                <strong>Mem</strong> {{ container.resourceMemory || '-' }}
                               </span>
                               <span class="resource-item">
                                 <i class="fa-solid fa-network-wired resource-icon"></i>
