@@ -15,5 +15,4 @@ services:
     volumes:
       - ./data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro # Read-only access to Docker socket for security when in demo mode
-      - ./:/app
     restart: unless-stopped

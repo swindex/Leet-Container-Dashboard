@@ -2,7 +2,7 @@ name: Publish to Docker Hub
 
 on:
   push:
-    branches: [ "main" ]
+    # branches: [ "main" ]
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -50,12 +50,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Update Docker Hub Description
-        uses: peter-evans/dockerhub-description@v4
-        with:
-          username: eldargerfanov
-          password: ${{ secrets.DOCKER_PAT }}
-          repository: eldargerfanov/leet-container-dashboard
-          short-description: "Leet Container Dashboard - Docker container management web UI"
-          readme-filepath: ./README.md
