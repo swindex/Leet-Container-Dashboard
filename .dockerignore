@@ -8,6 +8,9 @@ data/
 # Development and test data
 data/test/
 
+# Scripts
+scripts/
+
 # Environment files
 .env
 .env.*
