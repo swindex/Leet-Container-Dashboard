@@ -2,9 +2,8 @@ import path from "path";
 import fs from "fs/promises";
 
 const DEFAULT_DATA_DIR_NAME = "data";
-const DEV_DATA_DIR_NAME = path.join("data", "secret");
-const TEST_DATA_DIR_NAME = path.join("data", "test");
-const DEV_BOOTSTRAP_SKIP_DIRS = new Set(["secret", "test"]);
+const DATA_SEED_DIR_NAME = "data-seed";
+const TEST_DATA_DIR_NAME = "data-test";
 
 type RuntimeMode = "development" | "test" | "production";
 
@@ -30,10 +29,6 @@ function getDefaultDataDirName(): string {
     return TEST_DATA_DIR_NAME;
   }
 
-  if (mode === "development") {
-    return DEV_DATA_DIR_NAME;
-  }
-
   return DEFAULT_DATA_DIR_NAME;
 }
 
@@ -54,38 +49,37 @@ export function resolveDataPath(...segments: string[]): string {
   return path.resolve(getDataRootDir(), ...segments);
 }
 
-export async function ensureDevDataSeeded(): Promise<void> {
-  if (!isDevMode()) {
-    return;
-  }
-
-  const sourceDir = path.resolve(process.cwd(), DEFAULT_DATA_DIR_NAME);
+export async function ensureDataSeeded(): Promise<void> {
+  const sourceDir = path.resolve(process.cwd(), DATA_SEED_DIR_NAME);
   const targetDir = getDataRootDir();
 
   if (path.resolve(sourceDir) === path.resolve(targetDir)) {
+    console.warn(`Data seed directory ${sourceDir} is the same as target data directory. Skipping seeding.`);
     return;
   }
 
   await fs.mkdir(targetDir, { recursive: true });
   const targetEntries = await fs.readdir(targetDir);
   if (targetEntries.length > 0) {
+    console.log(`Target data directory ${targetDir} is not empty. Skipping seeding to avoid overwriting existing data.`);
     return;
   }
+
+  console.log(`Seeding data from ${sourceDir} to ${targetDir}...`);
 
   let sourceEntries: Awaited<ReturnType<typeof fs.readdir>>;
   try {
     sourceEntries = await fs.readdir(sourceDir, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    console.error(`Failed to read data seed directory ${sourceDir}: ${err}`);
     return;
   }
 
   for (const entry of sourceEntries) {
-    if (entry.isDirectory() && DEV_BOOTSTRAP_SKIP_DIRS.has(entry.name)) {
-      continue;
-    }
-
     const sourcePath = path.join(sourceDir, entry.name);
     const targetPath = path.join(targetDir, entry.name);
     await fs.cp(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: false });
   }
+
+  console.log(`Data seeded from ${sourceDir} to ${targetDir}`);
 }

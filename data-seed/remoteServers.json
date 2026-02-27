@@ -1,0 +1,14 @@
+{
+  "defaultServerId": "local",
+  "servers": [
+    {
+      "id": "local",
+      "name": "Local Server",
+      "host": "localhost",
+      "username": "",
+      "password": "",
+      "enabled": true,
+      "isLocal": true
+    }
+  ]
+}

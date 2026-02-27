@@ -1,0 +1,11 @@
+{
+  "appTitle": "Leet Container Dashboard",
+  "appSlogan": "Monitor and control containers on your network.",
+  "theme": "dark",
+  "backgroundImagePath": "/uploads/backgrounds/rainy-city-ai.png",
+  "hideAttributionFooter": false,
+  "showContainerResources": true,
+  "showServerResources": true,
+  "showImageName": true,
+  "showContainerHash": true
+}

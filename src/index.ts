@@ -1,12 +1,12 @@
 import "dotenv/config";
 import { createApp } from "./app.js";
-import { ensureDevDataSeeded } from "./lib/dataPaths.js";
+import { ensureDataSeeded } from "./lib/dataPaths.js";
 import { isDemoMode } from "./lib/demoMode.js";
 
 const PORT = process.env.PORT || 3000;
 
 async function start(): Promise<void> {
-  await ensureDevDataSeeded();
+  await ensureDataSeeded();
 
   if (isDemoMode()) {
     console.log("⚠️  DEMO MODE ENABLED - All write operations will be simulated");
