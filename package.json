@@ -1,6 +1,6 @@
 {
   "name": "home-server-panel",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "main": "src/index.ts",
   "type": "module",
@@ -9,8 +9,7 @@
     "dev": "kill-port 3000 && bun --watch src/index.ts",
     "test": "vitest run --no-file-parallelism",
     "docker-dev": "docker compose -f docker-compose.dev.yml up --build",
-    "tag": "bun run scripts/git-tag.ts",
-    "tag-and-push": "bun run scripts/git-tag-push.ts"
+    "tag": "bun run scripts/git-tag.ts && bun run scripts/git-tag-push.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
