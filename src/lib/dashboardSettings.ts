@@ -2,6 +2,7 @@ import fs from "fs/promises";
 import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
 import { isDemoMode, logDemoAction } from "./demoMode.js";
+import { validateOrThrow, updateSettingsSchema } from "./validation.js";
 
 export const DEFAULT_DASHBOARD_SETTINGS = {
   appTitle: "Leet Container Dashboard",
@@ -40,10 +41,6 @@ export function getDashboardBackgroundUploadsPath(): string {
   return process.env.DASHBOARD_UPLOADS_DIR || DEFAULT_DASHBOARD_UPLOADS_PATH;
 }
 
-function toTheme(value: unknown): DashboardTheme {
-  return value === "light" ? "light" : "dark";
-}
-
 function toBackgroundImagePath(value: unknown): string {
   if (typeof value !== "string") {
     return "";
@@ -57,38 +54,31 @@ function toBackgroundImagePath(value: unknown): string {
   return normalized;
 }
 
-function toBooleanSetting(value: unknown, fallback = true): boolean {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "1", "yes", "on"].includes(normalized)) {
-      return true;
-    }
-    if (["false", "0", "no", "off"].includes(normalized)) {
-      return false;
-    }
-  }
-
-  return fallback;
-}
-
 function normalizeSettings(input: Partial<DashboardSettings>): DashboardSettings {
-  const appTitle = typeof input.appTitle === "string" ? input.appTitle.trim() : "";
-  const appSlogan = typeof input.appSlogan === "string" ? input.appSlogan.trim() : "";
+  // Use Joi validation for the core settings
+  const validated = validateOrThrow<{
+    appTitle: string;
+    appSlogan: string;
+    theme: DashboardTheme;
+    hideAttributionFooter: boolean;
+    showContainerResources: boolean;
+    showServerResources: boolean;
+    showImageName: boolean;
+    showContainerHash: boolean;
+  }>(updateSettingsSchema, {
+    appTitle: input.appTitle,
+    appSlogan: input.appSlogan,
+    theme: input.theme,
+    hideAttributionFooter: input.hideAttributionFooter,
+    showContainerResources: input.showContainerResources,
+    showServerResources: input.showServerResources,
+    showImageName: input.showImageName,
+    showContainerHash: input.showContainerHash,
+  });
 
   return {
-    appTitle: (appTitle || DEFAULT_DASHBOARD_SETTINGS.appTitle).slice(0, 120),
-    appSlogan: (appSlogan || DEFAULT_DASHBOARD_SETTINGS.appSlogan).slice(0, 220),
-    theme: toTheme(input.theme),
+    ...validated,
     backgroundImagePath: toBackgroundImagePath(input.backgroundImagePath),
-    hideAttributionFooter: toBooleanSetting(input.hideAttributionFooter, DEFAULT_DASHBOARD_SETTINGS.hideAttributionFooter),
-    showContainerResources: toBooleanSetting(input.showContainerResources, DEFAULT_DASHBOARD_SETTINGS.showContainerResources),
-    showServerResources: toBooleanSetting(input.showServerResources, DEFAULT_DASHBOARD_SETTINGS.showServerResources),
-    showImageName: toBooleanSetting(input.showImageName, DEFAULT_DASHBOARD_SETTINGS.showImageName),
-    showContainerHash: toBooleanSetting(input.showContainerHash, DEFAULT_DASHBOARD_SETTINGS.showContainerHash),
   };
 }
 

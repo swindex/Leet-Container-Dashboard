@@ -6,6 +6,7 @@ import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { hasPermission, type Permission, type Role, PERMISSIONS, ROLES } from "./rbac.js";
 import { resolveDataPath } from "./dataPaths.js";
 import { isDemoMode, logDemoAction } from "./demoMode.js";
+import { validateOrThrow, loginSchema, createUserSchema, updateUserSchema } from "./validation.js";
 
 const SESSION_COOKIE_NAME = "hs_session";
 const DEFAULT_USERS_PATH = resolveDataPath("users.json");
@@ -80,9 +81,6 @@ declare global {
 }
 
 const loginAttempts = new Map<string, { count: number; firstAttemptAt: number; lockedUntil?: number }>();
-const USERNAME_REGEX = /^[a-zA-Z0-9_.-]{3,50}$/;
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 128;
 
 function getUsersFilePath(): string {
   return process.env.NODE_ENV === "test" ? DEFAULT_TEST_USERS_PATH : DEFAULT_USERS_PATH;
@@ -112,14 +110,13 @@ export async function isBootstrapAdminMode(): Promise<boolean> {
 }
 
 async function createBootstrapAdmin(usernameInput: string, password: string): Promise<AppSessionUser | null> {
-  const username = usernameInput.trim();
-  if (!USERNAME_REGEX.test(username)) {
-    throw new Error("Username must be 3-50 chars and use letters, numbers, _, ., or -");
-  }
+  // Validate using Joi schema
+  const validated = validateOrThrow<{ username: string; password: string }>(loginSchema, {
+    username: usernameInput,
+    password,
+  });
 
-  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-    throw new Error("Password must be between 8 and 128 characters");
-  }
+  const { username } = validated;
 
   if (!password.trim()) {
     return null;
@@ -283,27 +280,35 @@ function registerSuccessfulLogin(identity: string): void {
 }
 
 export async function authenticateUser(username: string, password: string): Promise<AppSessionUser | null> {
-  const normalized = username.trim().toLowerCase();
-  if (!USERNAME_REGEX.test(normalized) || password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
+  // Validate using Joi schema - return null on validation failure to prevent enumeration
+  try {
+    const validated = validateOrThrow<{ username: string; password: string }>(loginSchema, {
+      username,
+      password,
+    });
+    
+    const normalized = validated.username.trim().toLowerCase();
+
+    const { users } = await readUsersFile();
+    const user = users.find((u) => u.username.toLowerCase() === normalized && u.active);
+    if (!user) {
+      return null;
+    }
+
+    const matches = await bcrypt.compare(password, user.passwordHash);
+    if (!matches) {
+      return null;
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+    };
+  } catch {
+    // Validation failed - return null to prevent enumeration
     return null;
   }
-
-  const { users } = await readUsersFile();
-  const user = users.find((u) => u.username.toLowerCase() === normalized && u.active);
-  if (!user) {
-    return null;
-  }
-
-  const matches = await bcrypt.compare(password, user.passwordHash);
-  if (!matches) {
-    return null;
-  }
-
-  return {
-    id: user.id,
-    username: user.username,
-    role: user.role,
-  };
 }
 
 export function setAuthSession(res: Response, user: AppSessionUser): string {
@@ -517,19 +522,11 @@ export async function createManagedUser(input: {
   password: string;
   role: Role;
 }): Promise<void> {
-  const username = input.username.trim();
+  // Validate using Joi schema
+  const validated = validateOrThrow<{ username: string; password: string; role: Role }>(createUserSchema, input);
+  
+  const { username, password, role } = validated;
   const normalizedUsername = username.toLowerCase();
-  const password = input.password;
-
-  if (!USERNAME_REGEX.test(username)) {
-    throw new Error("Username must be 3-50 chars and use letters, numbers, _, ., or -");
-  }
-  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
-    throw new Error("Password must be between 8 and 128 characters");
-  }
-  if (!Object.values(ROLES).includes(input.role)) {
-    throw new Error("Invalid role");
-  }
 
   const usersFile = await readUsersFile();
   const existing = usersFile.users.find((user) => user.username.toLowerCase() === normalizedUsername);
@@ -542,7 +539,7 @@ export async function createManagedUser(input: {
     id: crypto.randomUUID(),
     username,
     passwordHash: await bcrypt.hash(password, 12),
-    role: input.role,
+    role,
     active: true,
     createdAt: now,
     updatedAt: now,
@@ -612,17 +609,11 @@ export async function updateManagedUser(input: {
   role: Role;
   password?: string;
 }): Promise<void> {
-  if (!Object.values(ROLES).includes(input.role)) {
-    throw new Error("Invalid role");
-  }
-
-  if (
-    typeof input.password === "string" &&
-    input.password.length > 0 &&
-    (input.password.length < MIN_PASSWORD_LENGTH || input.password.length > MAX_PASSWORD_LENGTH)
-  ) {
-    throw new Error("Password must be between 8 and 128 characters");
-  }
+  // Validate using Joi schema
+  const validated = validateOrThrow<{ role: Role; password?: string }>(updateUserSchema, {
+    role: input.role,
+    password: input.password,
+  });
 
   const usersFile = await readUsersFile();
   const target = usersFile.users.find((user) => user.id === input.userId);
@@ -639,16 +630,16 @@ export async function updateManagedUser(input: {
     throw new Error("Cannot edit the original admin");
   }
 
-  if (target.role === ROLES.ADMIN && input.role !== ROLES.ADMIN && target.active) {
+  if (target.role === ROLES.ADMIN && validated.role !== ROLES.ADMIN && target.active) {
     const activeAdminCount = usersFile.users.filter((user) => user.role === ROLES.ADMIN && user.active).length;
     if (activeAdminCount <= 1) {
       throw new Error("Cannot remove the last active admin role");
     }
   }
 
-  target.role = input.role;
-  if (typeof input.password === "string" && input.password.length > 0) {
-    target.passwordHash = await bcrypt.hash(input.password, 12);
+  target.role = validated.role;
+  if (typeof validated.password === "string" && validated.password.length > 0) {
+    target.passwordHash = await bcrypt.hash(validated.password, 12);
   }
   target.updatedAt = new Date().toISOString();
 

@@ -246,8 +246,8 @@
                           </td>
                           <td>
                             <div class="fw-semibold">{{ container.Names }}</div>
-                            <small v-if="<%= dashboardSettings.showContainerHash !== false %>" class="text-muted block">{{ container.ID.slice(0, 12) }}</small>
-                            <small v-if="<%= dashboardSettings.showImageName !== false %>" class="text-muted block">{{ container.Image }}</small>
+                            <small v-if="<%= dashboardSettings.showContainerHash !== false %>" class="text-muted block hash-text">{{ container.ID.slice(0, 12) }}</small>
+                            <small v-if="<%= dashboardSettings.showImageName !== false %>" class="text-muted block image-text">{{ container.Image }}</small>
                             <div v-if="container.serviceLinks && container.serviceLinks.length" class="service-links mt-1">
                               <a v-for="link in container.serviceLinks" :key="link.url"
                                  class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">

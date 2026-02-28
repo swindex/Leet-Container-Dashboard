@@ -3,6 +3,7 @@ import crypto from "crypto";
 import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
 import { isDemoMode, logDemoAction } from "./demoMode.js";
+import { validateOrThrow, createServerSchema, updateServerSchema, updateLocalServerSchema } from "./validation.js";
 
 const DEFAULT_REMOTE_SERVERS_PATH = resolveDataPath("remoteServers.json");
 const ENCRYPTED_PASSWORD_PREFIX = "enc:v1";
@@ -272,28 +273,23 @@ export async function createRemoteServer(input: {
   password: string;
   enabled: boolean;
 }): Promise<void> {
-  const name = input.name.trim();
-  const host = input.host.trim();
-  const username = input.username.trim();
-
-  if (!name) {
-    throw new Error("Server name is required");
-  }
-  if (!host) {
-    throw new Error("Server host is required");
-  }
-  if (!username) {
-    throw new Error("Server username is required");
-  }
+  // Validate using Joi schema
+  const validated = validateOrThrow<{
+    name: string;
+    host: string;
+    username: string;
+    password: string;
+    enabled: boolean;
+  }>(createServerSchema, input);
 
   const file = await readRemoteServersFile();
   file.servers.push({
     id: crypto.randomUUID(),
-    name,
-    host,
-    username,
-    password: input.password,
-    enabled: input.enabled,
+    name: validated.name,
+    host: validated.host,
+    username: validated.username,
+    password: validated.password,
+    enabled: validated.enabled,
     isLocal: false,
   });
 
@@ -316,24 +312,23 @@ export async function updateRemoteServer(
     throw new Error("Server not found");
   }
 
-  const name = input.name.trim();
-  const host = input.host.trim();
-  const username = input.username.trim();
+  // Use different schema for local vs remote servers
+  const schema = target.isLocal ? updateLocalServerSchema : updateServerSchema;
+  const validated = validateOrThrow<{
+    name: string;
+    host: string;
+    username: string;
+    password?: string;
+    enabled: boolean;
+  }>(schema, input);
 
-  if (!name || !host) {
-    throw new Error("Name and host are required");
+  target.name = validated.name;
+  target.host = validated.host;
+  target.username = validated.username;
+  if (typeof validated.password === "string" && validated.password.length > 0) {
+    target.password = validated.password;
   }
-  if (!target.isLocal && !username) {
-    throw new Error("Name, host, and username are required");
-  }
-
-  target.name = name;
-  target.host = host;
-  target.username = username;
-  if (typeof input.password === "string" && input.password.length > 0) {
-    target.password = input.password;
-  }
-  target.enabled = input.enabled;
+  target.enabled = validated.enabled;
 
   if (!target.enabled && file.defaultServerId === target.id) {
     file.defaultServerId = LOCAL_SERVER_ID;
