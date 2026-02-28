@@ -24,6 +24,21 @@ Try out the live demo at: **https://lcd.snapwebapps.com/**
 - User administration (create, update, enable/disable, delete)
 - Dashboard customization (theme, title/slogan, background image)
 - Server and container resource metrics
+- Launcher page with beautiful service tiles for HTTP-exposed containers
+
+
+### Launcher labels (optional)
+
+The launcher automatically shows containers that expose TCP ports.
+You can customize launcher tiles per-container using Docker labels:
+
+- `lcd.launcher.name` → Override tile name.
+- `lcd.launcher.public_url` → URL to open instead of local server URL.
+- `lcd.launcher.hidden=true` → Hide tile by default (still visible when "Show all" is enabled).
+- `lcd.launcher.icon` → Override Font Awesome icon class (example: `fa-solid fa-film`).
+- `lcd.launcher.icon_color` → Override icon color class.
+
+If `lcd.launcher.public_url` is not set, launcher falls back to local URL using server host + exposed port.
 
 ## Tech Stack
 

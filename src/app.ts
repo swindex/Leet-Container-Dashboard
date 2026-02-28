@@ -108,6 +108,18 @@ type DashboardServerMetrics = {
   warning: string;
 };
 
+type LauncherTile = {
+  id: string;
+  name: string;
+  description: string;
+  iconClass: string;
+  iconColorClass: string;
+  launchUrl: string;
+  localUrl: string;
+  publicUrl: string;
+  hidden: boolean;
+};
+
 type ResolvedComposeGroup = {
   key: string;
   title: string;
@@ -401,6 +413,89 @@ function parseDockerLabels(labels: string): Record<string, string> {
     }
     return acc;
   }, {});
+}
+
+function parseTruthyLabelValue(value: string | undefined): boolean {
+  const normalized = (value || "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+function normalizeUrlCandidate(value: string | undefined): string {
+  const trimmed = (value || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
+function inferLauncherIcon(container: DockerContainer): { iconClass: string; iconColorClass: string } {
+  const candidate = `${container.Names} ${container.Image}`.toLowerCase();
+  const knownApps: Array<{ match: RegExp; iconClass: string; iconColorClass: string }> = [
+    { match: /emby/, iconClass: "fa-solid fa-play", iconColorClass: "launcher-icon-emby" },
+    { match: /immich/, iconClass: "fa-solid fa-images", iconColorClass: "launcher-icon-immich" },
+    { match: /plex/, iconClass: "fa-solid fa-circle-play", iconColorClass: "launcher-icon-plex" },
+    { match: /jellyfin/, iconClass: "fa-solid fa-clapperboard", iconColorClass: "launcher-icon-jellyfin" },
+    { match: /grafana/, iconClass: "fa-solid fa-chart-column", iconColorClass: "launcher-icon-grafana" },
+    { match: /portainer/, iconClass: "fa-solid fa-cubes", iconColorClass: "launcher-icon-portainer" },
+    { match: /nextcloud/, iconClass: "fa-solid fa-cloud", iconColorClass: "launcher-icon-nextcloud" },
+  ];
+
+  for (const app of knownApps) {
+    if (app.match.test(candidate)) {
+      return {
+        iconClass: app.iconClass,
+        iconColorClass: app.iconColorClass,
+      };
+    }
+  }
+
+  return {
+    iconClass: "fa-solid fa-rocket",
+    iconColorClass: "launcher-icon-default",
+  };
+}
+
+function buildLauncherTiles(containers: DockerContainer[], serviceHost: string): LauncherTile[] {
+  const tiles: LauncherTile[] = [];
+
+  for (const container of containers) {
+    const serviceLinks = inferServiceLinksFromPorts(container.Ports || "", serviceHost);
+    if (!serviceLinks.length) {
+      continue;
+    }
+
+    const labels = parseDockerLabels(container.Labels || "");
+    const localUrl = serviceLinks[0]?.url || "";
+    if (!localUrl) {
+      continue;
+    }
+
+    const configuredPublicUrl = normalizeUrlCandidate(labels["lcd.launcher.public_url"]);
+    const launchUrl = configuredPublicUrl || localUrl;
+    const configuredName = (labels["lcd.launcher.name"] || "").trim();
+    const configuredIcon = (labels["lcd.launcher.icon"] || "").trim();
+    const configuredIconColor = (labels["lcd.launcher.icon_color"] || "").trim();
+    const iconPreset = inferLauncherIcon(container);
+
+    tiles.push({
+      id: container.ID,
+      name: configuredName || container.Names,
+      description: container.Image,
+      iconClass: configuredIcon || iconPreset.iconClass,
+      iconColorClass: configuredIconColor || iconPreset.iconColorClass,
+      launchUrl,
+      localUrl,
+      publicUrl: configuredPublicUrl,
+      hidden: parseTruthyLabelValue(labels["lcd.launcher.hidden"]),
+    });
+  }
+
+  return tiles.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function getBaseNameFromPath(pathValue: string): string {
@@ -732,6 +827,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     const statsLookup = buildContainerStatsLookup(containerStats);
     const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer), statsLookup);
     const serverMetrics = buildServerMetrics(hostInfo, containerStats, metricsWarning);
+    const launcherTiles = buildLauncherTiles(containers, getServiceHost(activeServer));
 
     return {
       servers,
@@ -741,6 +837,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       fallbackError,
       containers,
       groupedContainers,
+      launcherTiles,
       serverMetrics,
       metricsWarning,
       cacheAge,
@@ -782,6 +879,39 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
     }
   });
 
+  app.get("/launcher", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
+    try {
+      const { servers, defaultServerId } = await listRemoteServers();
+      const selectedFromSession = getActiveServerSessionId(req);
+      const { server: activeServer } = await resolveServerByIdOrDefault(selectedFromSession);
+      const can = getPermissionFlags(req.user);
+      const { notice, error } = consumeFlashSession(res, req);
+
+      res.render("launcher", {
+        user: req.user,
+        can,
+        csrfToken: req.csrfToken,
+        notice,
+        error,
+        servers,
+        activeServerId: activeServer.id,
+        defaultServerId,
+      });
+    } catch (e) {
+      const error = e as Error;
+      res.status(500).render("launcher", {
+        user: req.user,
+        can: getPermissionFlags(req.user),
+        csrfToken: req.csrfToken,
+        notice: "",
+        error: `Launcher error: ${error.message}`,
+        servers: [],
+        activeServerId: "",
+        defaultServerId: "local",
+      });
+    }
+  });
+
   // API endpoint for auto-refresh (returns JSON)
   app.get("/api/dashboard", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
     try {
@@ -803,6 +933,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         data: {
           containers: dashboardData.containers,
           groupedContainers: dashboardData.groupedContainers,
+          launcherTiles: dashboardData.launcherTiles,
           serverMetrics: dashboardData.serverMetrics,
           metricsWarning: dashboardData.metricsWarning,
           servers: dashboardData.servers,
@@ -814,6 +945,28 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           timestamp: Date.now(),
         },
         permissions: can,
+      });
+    } catch (e) {
+      const error = e as Error;
+      res.status(500).json({
+        success: false,
+        error: error.message,
+      });
+    }
+  });
+
+  app.get("/api/launcher", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
+    try {
+      const dashboardData = await fetchDashboardData(req, res);
+      res.json({
+        success: true,
+        data: {
+          launcherTiles: dashboardData.launcherTiles,
+          servers: dashboardData.servers,
+          activeServerId: dashboardData.activeServer.id,
+          defaultServerId: dashboardData.defaultServerId,
+          unavailableServerIds: dashboardData.unavailableServerIds,
+        },
       });
     } catch (e) {
       const error = e as Error;

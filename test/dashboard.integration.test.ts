@@ -248,6 +248,8 @@ describe("dashboard page integration - statically rendered content only", () => 
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
       restartHostMachine: restartHostMock,
     });
 
@@ -259,6 +261,51 @@ describe("dashboard page integration - statically rendered content only", () => 
     expect(dashboardRes.text).toContain("Admin Permission Required");
   });
 
+
+
+  it("renders launcher page and returns launcher tiles with hide + public URL metadata", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "launch111",
+          Names: "emby",
+          Image: "lscr.io/linuxserver/emby:latest",
+          Status: "Up 1 hour",
+          Command: "",
+          CreatedAt: "",
+          Labels: "lcd.launcher.public_url=https://emby.example.com,lcd.launcher.hidden=true",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "0.0.0.0:8096->8096/tcp",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    const launcherPage = await agent.get("/launcher");
+    expect(launcherPage.status).toBe(200);
+    expect(launcherPage.text).toContain("Service Launcher");
+
+    const launcherApi = await agent.get("/api/launcher");
+    expect(launcherApi.status).toBe(200);
+    expect(launcherApi.body.success).toBe(true);
+    expect(launcherApi.body.data.launcherTiles).toHaveLength(1);
+    expect(launcherApi.body.data.launcherTiles[0].launchUrl).toBe("https://emby.example.com");
+    expect(launcherApi.body.data.launcherTiles[0].localUrl).toBe("http://localhost:8096");
+    expect(launcherApi.body.data.launcherTiles[0].hidden).toBe(true);
+  });
   it("shows user management access on dashboard only for admin", async () => {
     const app = createApp({
       listContainers: async () => [],

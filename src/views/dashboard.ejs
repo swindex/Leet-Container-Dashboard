@@ -20,8 +20,20 @@
       <div class="row g-3 align-items-stretch mb-4">
         <div class="col-12">
           <div class="panel h-100 d-flex flex-column justify-content-center">
-            <h1 class="mb-2"><i class="fa-solid fa-server me-2"></i><%= dashboardSettings.appTitle %></h1>
-            <p class="text-muted mb-0"><%= dashboardSettings.appSlogan %></p>
+            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+              <div>
+                <h1 class="mb-2"><i class="fa-solid fa-server me-2"></i><%= dashboardSettings.appTitle %></h1>
+                <p class="text-muted mb-0"><%= dashboardSettings.appSlogan %></p>
+              </div>
+              <nav class="hs-page-nav" aria-label="Primary navigation">
+                <a href="/" class="btn btn-sm btn-hs-secondary active" aria-current="page">
+                  <i class="fa-solid fa-table-list me-1"></i>Dashboard
+                </a>
+                <a href="/launcher" class="btn btn-sm btn-hs-secondary">
+                  <i class="fa-solid fa-rocket me-1"></i>Launcher
+                </a>
+              </nav>
+            </div>
           </div>
         </div>
       </div>

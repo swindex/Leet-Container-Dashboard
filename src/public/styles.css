@@ -553,3 +553,90 @@ small.block {
     padding: 0.75rem;
   }
 }
+
+.hs-page-nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hs-page-nav .btn.active {
+  background: #0f3f4c;
+  border-color: #00c9d2;
+  color: #d4fbff;
+}
+
+.launcher-toggle .form-check-input {
+  cursor: pointer;
+}
+
+.launcher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.launcher-tile {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  background: rgba(9, 16, 24, 0.85);
+  border: 1px solid #284661;
+  border-radius: 14px;
+  padding: 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.launcher-tile:hover,
+.launcher-tile:focus {
+  transform: translateY(-2px);
+  border-color: #00c9d2;
+  box-shadow: 0 0 0 1px rgba(0, 201, 210, 0.25);
+}
+
+.launcher-tile-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.launcher-tile-content {
+  min-width: 0;
+}
+
+.launcher-url {
+  font-size: 0.78rem;
+  color: #82d8ff;
+  word-break: break-all;
+}
+
+.launcher-icon-default { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
+.launcher-icon-emby { background: linear-gradient(135deg, #6d28d9, #a855f7); }
+.launcher-icon-immich { background: linear-gradient(135deg, #22c55e, #14b8a6); }
+.launcher-icon-plex { background: linear-gradient(135deg, #f59e0b, #f97316); }
+.launcher-icon-jellyfin { background: linear-gradient(135deg, #8b5cf6, #6366f1); }
+.launcher-icon-grafana { background: linear-gradient(135deg, #f97316, #ef4444); }
+.launcher-icon-portainer { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.launcher-icon-nextcloud { background: linear-gradient(135deg, #0284c7, #38bdf8); }
+
+.hs-theme-light .hs-page-nav .btn.active {
+  background: #c6eef3;
+  border-color: #4fb6c0;
+  color: #163743;
+}
+
+.hs-theme-light .launcher-tile {
+  background: #f8fbff;
+  border-color: #c9d8e7;
+}
+
+.hs-theme-light .launcher-url {
+  color: #1d5f99;
+}
