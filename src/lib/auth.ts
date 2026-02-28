@@ -699,11 +699,22 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   const isBootstrapMode = await isBootstrapAdminMode();
 
-  const bootstrapUser = await createBootstrapAdmin(username, password);
-  if (bootstrapUser) {
-    setAuthSession(res, bootstrapUser);
-    res.redirect("/");
-    return;
+  if (isBootstrapMode) {
+    try {
+      const bootstrapUser = await createBootstrapAdmin(username, password);
+      if (bootstrapUser) {
+        setAuthSession(res, bootstrapUser);
+        res.redirect("/");
+        return;
+      }
+    } catch (error) {
+      res.status(400).render("login", {
+        error: (error as Error).message,
+        username,
+        isBootstrapMode,
+      });
+      return;
+    }
   }
 
   const ip = req.ip || "unknown";
@@ -715,7 +726,7 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
     res.status(429).render("login", {
       error: `Too many attempts. Try again in ${waitSeconds}s.`,
       username,
-      isBootstrapMode,
+      isBootstrapMode: false,
     });
     return;
   }
@@ -726,7 +737,7 @@ export async function handleLogin(req: Request, res: Response): Promise<void> {
     res.status(401).render("login", {
       error: "Invalid credentials",
       username,
-      isBootstrapMode,
+      isBootstrapMode: false,
     });
     return;
   }
