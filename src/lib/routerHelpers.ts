@@ -43,8 +43,7 @@ export type LaunchpadTile = {
   id: string;
   name: string;
   description: string;
-  iconClass: string;
-  iconColorClass: string;
+  iconImage: string;
   launchUrl: string;
   localUrl: string;
   publicUrl: string;
@@ -314,32 +313,6 @@ export function normalizeUrlCandidate(value: string | undefined): string {
   return `https://${trimmed}`;
 }
 
-export function inferLaunchpadIcon(container: DockerContainer): { iconClass: string; iconColorClass: string } {
-  const candidate = `${container.Names} ${container.Image}`.toLowerCase();
-  const knownApps: Array<{ match: RegExp; iconClass: string; iconColorClass: string }> = [
-    { match: /emby/, iconClass: "fa-solid fa-play", iconColorClass: "launchpad-icon-emby" },
-    { match: /immich/, iconClass: "fa-solid fa-images", iconColorClass: "launchpad-icon-immich" },
-    { match: /plex/, iconClass: "fa-solid fa-circle-play", iconColorClass: "launchpad-icon-plex" },
-    { match: /jellyfin/, iconClass: "fa-solid fa-clapperboard", iconColorClass: "launchpad-icon-jellyfin" },
-    { match: /grafana/, iconClass: "fa-solid fa-chart-column", iconColorClass: "launchpad-icon-grafana" },
-    { match: /portainer/, iconClass: "fa-solid fa-cubes", iconColorClass: "launchpad-icon-portainer" },
-    { match: /nextcloud/, iconClass: "fa-solid fa-cloud", iconColorClass: "launchpad-icon-nextcloud" },
-  ];
-
-  for (const app of knownApps) {
-    if (app.match.test(candidate)) {
-      return {
-        iconClass: app.iconClass,
-        iconColorClass: app.iconColorClass,
-      };
-    }
-  }
-
-  return {
-    iconClass: "fa-solid fa-rocket",
-    iconColorClass: "launchpad-icon-default",
-  };
-}
 
 export function buildLaunchpadTiles(containers: DockerContainer[], serviceHost: string): LaunchpadTile[] {
   const tiles: LaunchpadTile[] = [];
@@ -355,14 +328,11 @@ export function buildLaunchpadTiles(containers: DockerContainer[], serviceHost: 
       continue;
     }
 
-    const iconPreset = inferLaunchpadIcon(container);
-
     tiles.push({
       id: container.ID,
       name: container.Names,
       description: container.Image,
-      iconClass: iconPreset.iconClass,
-      iconColorClass: iconPreset.iconColorClass,
+      iconImage: "",
       launchUrl: localUrl,
       localUrl,
       publicUrl: "",

@@ -97,8 +97,7 @@ export function createLaunchpadRouter() {
           id: item.id,
           name: item.name,
           description: item.description || "",
-          iconClass: item.icon,
-          iconColorClass: item.iconColor,
+          iconImage: item.iconImage,
           launchUrl: item.publicUrl || item.localUrl,
           localUrl: item.localUrl,
           publicUrl: item.publicUrl,
@@ -165,7 +164,7 @@ export function createLaunchpadRouter() {
           throw new Error("Launchpad item not found");
         }
 
-        let iconPath = item.icon;
+        let iconPath = item.iconImage;
 
         // Handle icon file upload
         if (req.file) {
@@ -179,16 +178,16 @@ export function createLaunchpadRouter() {
           const targetPath = path.join(launchpadIconsDir, filename);
           await fs.writeFile(targetPath, req.file.buffer);
           iconPath = `/uploads/launchpad-icons/${filename}`;
-        } else if (typeof req.body?.icon === "string" && req.body.icon) {
-          // Use selected icon from dropdown
-          iconPath = req.body.icon;
+        } else if ("icon" in req.body) {
+          // Use selected icon from dropdown (including empty string to clear)
+          iconPath = typeof req.body.icon === "string" ? req.body.icon : "";
         }
 
         await updateLaunchpadItem(itemId, {
           name: typeof req.body?.name === "string" ? req.body.name : undefined,
           description: typeof req.body?.description === "string" ? req.body.description : undefined,
           publicUrl: typeof req.body?.publicUrl === "string" ? req.body.publicUrl : undefined,
-          icon: iconPath,
+          iconImage: iconPath,
           hidden: typeof req.body?.hidden === "string" ? req.body.hidden === "true" : undefined,
         });
 

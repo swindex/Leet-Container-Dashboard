@@ -16,8 +16,7 @@ export type LaunchpadItem = {
   description?: string;
   publicUrl: string;
   localUrl: string;
-  icon: string;
-  iconColor: string;
+  iconImage: string;
   hidden: boolean;
   status: "running" | "stopped" | "removed";
   lastSeen: string;
@@ -48,8 +47,7 @@ function validateLaunchpadFile(input: unknown): LaunchpadFile {
       description: typeof partial.description === "string" ? partial.description : undefined,
       publicUrl: typeof partial.publicUrl === "string" ? partial.publicUrl : "",
       localUrl: typeof partial.localUrl === "string" ? partial.localUrl : "",
-      icon: typeof partial.icon === "string" ? partial.icon : "fa-solid fa-rocket",
-      iconColor: typeof partial.iconColor === "string" ? partial.iconColor : "launchpad-icon-default",
+      iconImage: typeof partial.iconImage === "string" ? partial.iconImage : "",
       hidden: typeof partial.hidden === "boolean" ? partial.hidden : false,
       status: (["running", "stopped", "removed"].includes(partial.status as string)
         ? partial.status
@@ -116,8 +114,7 @@ export async function createLaunchpadItem(input: {
   description?: string;
   publicUrl?: string;
   localUrl?: string;
-  icon?: string;
-  iconColor?: string;
+  iconImage?: string;
   hidden?: boolean;
 }): Promise<void> {
   const file = await readLaunchpadFile();
@@ -131,8 +128,7 @@ export async function createLaunchpadItem(input: {
     description: input.description,
     publicUrl: input.publicUrl || "",
     localUrl: input.localUrl || "",
-    icon: input.icon || "fa-solid fa-rocket",
-    iconColor: input.iconColor || "launchpad-icon-default",
+    iconImage: input.iconImage || "",
     hidden: input.hidden ?? false,
     status: "stopped",
     lastSeen: new Date().toISOString(),
@@ -148,8 +144,7 @@ export async function updateLaunchpadItem(
     name?: string;
     description?: string;
     publicUrl?: string;
-    icon?: string;
-    iconColor?: string;
+    iconImage?: string;
     hidden?: boolean;
   }
 ): Promise<void> {
@@ -169,11 +164,8 @@ export async function updateLaunchpadItem(
   if (typeof input.publicUrl === "string") {
     target.publicUrl = input.publicUrl;
   }
-  if (typeof input.icon === "string") {
-    target.icon = input.icon;
-  }
-  if (typeof input.iconColor === "string") {
-    target.iconColor = input.iconColor;
+  if (typeof input.iconImage === "string") {
+    target.iconImage = input.iconImage;
   }
   if (typeof input.hidden === "boolean") {
     target.hidden = input.hidden;

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import fs from "fs/promises";
 import {
   readLaunchpadFile,
   writeLaunchpadFile,
@@ -6,6 +7,7 @@ import {
 } from "./launchpadItems.js";
 import type { DockerContainer } from "./dockerCli.js";
 import type { RemoteServer } from "./remoteServers.js";
+import { getLaunchpadIconsUploadsPath } from "./dashboardSettings.js";
 
 type ServiceLink = {
   port: number;
@@ -76,32 +78,39 @@ function inferServiceLinksFromPorts(portsValue: string, serviceHost: string): Se
   return result.sort((a, b) => a.port - b.port);
 }
 
-function inferLauncherIcon(container: DockerContainer): { iconClass: string; iconColorClass: string } {
-  const candidate = `${container.Names} ${container.Image}`.toLowerCase();
-  const knownApps: Array<{ match: RegExp; iconClass: string; iconColorClass: string }> = [
-    { match: /emby/, iconClass: "fa-solid fa-play", iconColorClass: "launcher-icon-emby" },
-    { match: /immich/, iconClass: "fa-solid fa-images", iconColorClass: "launcher-icon-immich" },
-    { match: /plex/, iconClass: "fa-solid fa-circle-play", iconColorClass: "launcher-icon-plex" },
-    { match: /jellyfin/, iconClass: "fa-solid fa-clapperboard", iconColorClass: "launcher-icon-jellyfin" },
-    { match: /grafana/, iconClass: "fa-solid fa-chart-column", iconColorClass: "launcher-icon-grafana" },
-    { match: /portainer/, iconClass: "fa-solid fa-cubes", iconColorClass: "launcher-icon-portainer" },
-    { match: /nextcloud/, iconClass: "fa-solid fa-cloud", iconColorClass: "launcher-icon-nextcloud" },
-  ];
-
-  for (const app of knownApps) {
-    if (app.match.test(candidate)) {
-      return {
-        iconClass: app.iconClass,
-        iconColorClass: app.iconColorClass,
-      };
+/**
+ * Attempts to infer an icon image path based on container name/image matching icon filenames
+ */
+async function inferIconImage(container: DockerContainer): Promise<string> {
+  try {
+    const iconsDir = getLaunchpadIconsUploadsPath();
+    const files = await fs.readdir(iconsDir);
+    
+    // Filter to only image files
+    const iconFiles = files.filter(file => /\.(png|jpg|jpeg|svg|gif|webp)$/i.test(file));
+    
+    // Extract names to match against (container name and image name)
+    const containerName = container.Names.toLowerCase();
+    const imageName = container.Image.toLowerCase();
+    
+    // Try to find a matching icon file
+    for (const iconFile of iconFiles) {
+      // Get filename without extension
+      const iconBaseName = iconFile.replace(/\.(png|jpg|jpeg|svg|gif|webp)$/i, '').toLowerCase();
+      
+      // Check if container name or image contains the icon base name
+      if (containerName.includes(iconBaseName) || imageName.includes(iconBaseName)) {
+        return `/uploads/launchpad-icons/${iconFile}`;
+      }
     }
+    
+    return "";
+  } catch (error) {
+    console.error(`[Launchpad] Failed to infer icon for ${container.Names}:`, error);
+    return "";
   }
-
-  return {
-    iconClass: "fa-solid fa-rocket",
-    iconColorClass: "launcher-icon-default",
-  };
 }
+
 
 /**
  * Syncs launchpad items for a specific server based on discovered containers
@@ -145,7 +154,7 @@ export async function syncLaunchpadItemsForServer(
         continue;
       }
 
-      const iconPreset = inferLauncherIcon(container);
+      const inferredIcon = await inferIconImage(container);
       file.items.push({
         id: crypto.randomUUID(),
         serverId: server.id,
@@ -155,8 +164,7 @@ export async function syncLaunchpadItemsForServer(
         description: undefined,
         publicUrl: "",
         localUrl,
-        icon: iconPreset.iconClass,
-        iconColor: iconPreset.iconColorClass,
+        iconImage: inferredIcon,
         hidden: false,
         status: newStatus,
         lastSeen: now,
