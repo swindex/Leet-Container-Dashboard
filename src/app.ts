@@ -847,7 +847,7 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
           result: "success",
         });
 
-        setFlashSession(res, req, { notice: "Server switched successfully" });
+        //setFlashSession(res, req, { notice: "Server switched successfully" });
         res.redirect("/");
       } catch (error) {
         setFlashSession(res, req, { error: (error as Error).message || "Failed to switch server" });

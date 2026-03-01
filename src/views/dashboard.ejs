@@ -58,289 +58,302 @@
       </div>
 
       <!-- Dashboard Content (Vue-rendered) -->
-      <template v-if="!loading">
-        <!-- Servers Panel -->
-        <div class="panel mb-3">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <h2 class="h5 mb-0"><i class="fa-solid fa-server me-2"></i>Servers</h2>
-            <small class="text-muted">Default marked with star</small>
-          </div>
-          <div class="server-band">
-            <div v-for="server in servers" :key="server.id" 
-                 :class="['server-pill', 
-                          server.id === activeServerId ? 'server-pill-active' : '',
-                          (!server.enabled || unavailableServerIds.includes(server.id)) ? 'server-pill-disabled' : '']">
-              <div class="d-flex align-items-center gap-2">
-                <i class="fa-solid fa-server"></i>
-                <div>
-                  <div class="fw-semibold">{{ server.name }}</div>
-                  <small class="text-muted">{{ server.username ? server.username + '@' : '' }}{{ server.host }}</small>
-                </div>
+      <!-- Servers Panel (always visible) -->
+      <div class="panel mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h2 class="h5 mb-0"><i class="fa-solid fa-server me-2"></i>Servers</h2>
+          <small class="text-muted">Default marked with star</small>
+        </div>
+        <div class="server-band">
+          <div v-for="server in servers" :key="server.id" 
+                :class="['server-pill', 
+                        server.id === activeServerId ? 'server-pill-active' : '',
+                        (!server.enabled || unavailableServerIds.includes(server.id)) ? 'server-pill-disabled' : '']">
+            <div class="d-flex align-items-center gap-2">
+              <i class="fa-solid fa-server"></i>
+              <div>
+                <div class="fw-semibold">{{ server.name }}</div>
+                <small class="text-muted">{{ server.username ? server.username + '@' : '' }}{{ server.host }}</small>
               </div>
-              <div class="d-flex align-items-center gap-2">
-                <span v-if="server.id === defaultServerId" class="badge text-bg-warning"><i class="fa-solid fa-star me-1"></i></span>
-                <span v-if="unavailableServerIds.includes(server.id)" class="badge text-bg-danger">[unavailable]</span>
-                <span v-if="server.id === activeServerId" class="badge text-bg-success">Active</span>
-                <form v-else-if="<%= can.canSwitchServers %> && server.enabled" action="/servers/switch" method="post" class="d-inline">
-                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                  <input type="hidden" name="serverId" :value="server.id" />
-                  <button type="submit" class="btn btn-sm btn-hs-secondary">
-                    <i class="fa-solid fa-right-left me-1"></i>Switch
-                  </button>
-                </form>
-              </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span v-if="server.id === defaultServerId" class="badge text-bg-warning"><i class="fa-solid fa-star me-1"></i></span>
+              <span v-if="unavailableServerIds.includes(server.id)" class="badge text-bg-danger">[unavailable]</span>
+              <span v-if="server.id === activeServerId" class="badge text-bg-success">Active</span>
+              <form v-else-if="<%= can.canSwitchServers %> && server.enabled" action="/servers/switch" method="post" class="d-inline">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <input type="hidden" name="serverId" :value="server.id" />
+                <button type="submit" class="btn btn-sm btn-hs-secondary">
+                  <i class="fa-solid fa-right-left me-1"></i>Switch
+                </button>
+              </form>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Server Resources (if enabled in settings) -->
-        <div v-if="<%= dashboardSettings.showServerResources !== false %>" class="panel mb-3">
-          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
-            <h2 class="h5 mb-0"><i class="fa-solid fa-microchip me-2"></i>Resource Consumption</h2>
-            <small class="text-muted">Auto-updates every 10s</small>
+      <!-- Server Resources (only show when no error) -->
+      <div v-if="!showError && <%= dashboardSettings.showServerResources !== false %>" class="panel mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+          <h2 class="h5 mb-0"><i class="fa-solid fa-microchip me-2"></i>Resource Consumption</h2>
+          <small class="text-muted">Auto-updates every 10s</small>
+        </div>
+        <div class="row g-2 small">
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">CPU Cores</div>
+              <div class="fw-semibold">{{ serverMetrics.cpuCores }}</div>
+            </div>
           </div>
-          <div class="row g-2 small">
-            <div class="col-6 col-md-3">
-              <div class="border rounded p-2 h-100">
-                <div class="text-muted">CPU Cores</div>
-                <div class="fw-semibold">{{ serverMetrics.cpuCores }}</div>
-              </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">Total Memory</div>
+              <div class="fw-semibold">{{ serverMetrics.totalMemory }}</div>
             </div>
-            <div class="col-6 col-md-3">
-              <div class="border rounded p-2 h-100">
-                <div class="text-muted">Total Memory</div>
-                <div class="fw-semibold">{{ serverMetrics.totalMemory }}</div>
-              </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">Container Memory Used</div>
+              <div class="fw-semibold">{{ serverMetrics.usedMemory }}</div>
             </div>
-            <div class="col-6 col-md-3">
-              <div class="border rounded p-2 h-100">
-                <div class="text-muted">Container Memory Used</div>
-                <div class="fw-semibold">{{ serverMetrics.usedMemory }}</div>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="border rounded p-2 h-100">
-                <div class="text-muted">Memory Utilization</div>
-                <div class="fw-semibold">{{ serverMetrics.memoryUtilization }}</div>
-                <small class="text-muted">{{ serverMetrics.monitoredContainers }} monitored container{{ serverMetrics.monitoredContainers === 1 ? '' : 's' }}</small>
-              </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="border rounded p-2 h-100">
+              <div class="text-muted">Memory Utilization</div>
+              <div class="fw-semibold">{{ serverMetrics.memoryUtilization }}</div>
+              <small class="text-muted">{{ serverMetrics.monitoredContainers }} monitored container{{ serverMetrics.monitoredContainers === 1 ? '' : 's' }}</small>
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Containers -->
-        <div class="row g-3">
-          <div class="col-12 col-xl-9">
-            <div class="panel">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2 class="h4 mb-0"><i class="fa-brands fa-docker me-2"></i>Containers</h2>
-                <span class="text-muted">{{ containers.length }} total</span>
-              </div>
+      <!-- Containers and User Menu -->
+      <div class="row g-3">
+        <div class="col-12 col-xl-9">
+          <!-- Containers Panel -->
+          <div class="panel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <h2 class="h4 mb-0"><i class="fa-brands fa-docker me-2"></i>Containers</h2>
+              <span class="text-muted">{{ containers.length }} total</span>
+            </div>
 
-              <!-- Bulk Action Bar -->
-              <div v-if="selectedContainers.size > 0" class="selected-action-bar mb-3">
-                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <div class="fw-semibold">Selected: {{ selectedContainers.size }}</div>
-                  <div class="d-flex align-items-center flex-wrap gap-2">
-                    <form action="/containers/remove" method="post" class="d-inline"
-                          @submit="handleRemove">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <input v-for="name in Array.from(selectedContainers)" :key="name"
-                             type="hidden" name="containers" :value="name" />
-                      <button type="submit" class="btn btn-sm btn-outline-danger" 
-                              :disabled="!<%= can.canRestartContainers %> || !canRemove">
-                        <i class="fa-solid fa-trash me-1"></i>Remove
-                      </button>
-                    </form>
-                    
-                    <form action="/containers/start" method="post" class="d-inline"
-                          @submit="handleStart">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <input v-for="name in Array.from(selectedContainers)" :key="name"
-                             type="hidden" name="containers" :value="name" />
-                      <button type="submit" class="btn btn-sm btn-success"
-                              :disabled="!<%= can.canRestartContainers %> || !canStart">
-                        <i class="fa-solid fa-play me-1"></i>Start
-                      </button>
-                    </form>
-                    
-                    <form action="/containers/stop" method="post" class="d-inline"
-                          @submit="handleStop">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <input v-for="name in Array.from(selectedContainers)" :key="name"
-                             type="hidden" name="containers" :value="name" />
-                      <button type="submit" class="btn btn-sm btn-danger"
-                              :disabled="!<%= can.canRestartContainers %> || !canStop">
-                        <i class="fa-solid fa-stop me-1"></i>Stop
-                      </button>
-                    </form>
-                    
-                    <form action="/containers/restart" method="post" class="d-inline"
-                          @submit="handleRestart">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <input v-for="name in Array.from(selectedContainers)" :key="name"
-                             type="hidden" name="containers" :value="name" />
-                      <button type="submit" class="btn btn-sm btn-hs-primary"
-                              :disabled="!<%= can.canRestartContainers %>">
-                        <i class="fa-solid fa-rotate-right me-1"></i>Restart
-                      </button>
-                    </form>
-                  </div>
+            <!-- Containers Error Placeholder -->
+            <div v-if="showError" class="text-center py-5">
+              <i class="fa-solid fa-triangle-exclamation text-danger mb-3" style="font-size: 3rem;"></i>
+              <h5 class="mb-3">Server Unavailable</h5>
+              <p class="text-muted mb-3">{{ errorMessage }}</p>
+              <p class="small text-muted">
+                <i class="fa-solid fa-rotate me-1"></i>
+                Auto-refreshing every 10 seconds. The dashboard will update automatically when the server becomes available.
+              </p>
+              <p v-if="servers.length > 1" class="small text-muted mt-3">
+                <i class="fa-solid fa-lightbulb me-1"></i>
+                Try switching to a different server above.
+              </p>
+            </div>
+
+            <!-- Bulk Action Bar -->
+            <div v-if="!showError && selectedContainers.size > 0" class="selected-action-bar mb-3">
+              <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="fw-semibold">Selected: {{ selectedContainers.size }}</div>
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                  <form action="/containers/remove" method="post" class="d-inline"
+                        @submit="handleRemove">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input v-for="name in Array.from(selectedContainers)" :key="name"
+                            type="hidden" name="containers" :value="name" />
+                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                            :disabled="!<%= can.canRestartContainers %> || !canRemove">
+                      <i class="fa-solid fa-trash me-1"></i>Remove
+                    </button>
+                  </form>
+                  
+                  <form action="/containers/start" method="post" class="d-inline"
+                        @submit="handleStart">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input v-for="name in Array.from(selectedContainers)" :key="name"
+                            type="hidden" name="containers" :value="name" />
+                    <button type="submit" class="btn btn-sm btn-success"
+                            :disabled="!<%= can.canRestartContainers %> || !canStart">
+                      <i class="fa-solid fa-play me-1"></i>Start
+                    </button>
+                  </form>
+                  
+                  <form action="/containers/stop" method="post" class="d-inline"
+                        @submit="handleStop">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input v-for="name in Array.from(selectedContainers)" :key="name"
+                            type="hidden" name="containers" :value="name" />
+                    <button type="submit" class="btn btn-sm btn-danger"
+                            :disabled="!<%= can.canRestartContainers %> || !canStop">
+                      <i class="fa-solid fa-stop me-1"></i>Stop
+                    </button>
+                  </form>
+                  
+                  <form action="/containers/restart" method="post" class="d-inline"
+                        @submit="handleRestart">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input v-for="name in Array.from(selectedContainers)" :key="name"
+                            type="hidden" name="containers" :value="name" />
+                    <button type="submit" class="btn btn-sm btn-hs-primary"
+                            :disabled="!<%= can.canRestartContainers %>">
+                      <i class="fa-solid fa-rotate-right me-1"></i>Restart
+                    </button>
+                  </form>
                 </div>
               </div>
-
-              <div class="table-responsive containers-table-wrap">
-                <table v-if="containers.length > 0" class="table table-hs align-middle mb-0">
-                  <thead>
-                    <tr>
-                      <th class="select-col">
+            </div>
+            <!-- Containers Table -->
+            <div v-if="!showError" class="table-responsive containers-table-wrap">
+              <table v-if="containers.length > 0" class="table table-hs align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th class="select-col">
+                      <input type="checkbox" class="form-check-input"
+                              v-model="selectAll"
+                              @change="toggleSelectAll"
+                              :disabled="areAllContainersDisabled"
+                              aria-label="Select all containers" />
+                    </th>
+                    <th>
+                      <span>Name</span>
+                      <span v-if="<%= dashboardSettings.showImageName !== false %>">/Image</span>
+                    </th>
+                    
+                    <th>Uptime</th>
+                    <th>Status</th>
+                    <th v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">Resources</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template v-for="group in groupedContainers" :key="group.key">
+                    <tr class="compose-group-row">
+                      <td class="group-select-cell">
                         <input type="checkbox" class="form-check-input"
-                               v-model="selectAll"
-                               @change="toggleSelectAll"
-                               :disabled="areAllContainersDisabled"
-                               aria-label="Select all containers" />
-                      </th>
-                      <th>
-                        <span>Name</span>
-                        <span v-if="<%= dashboardSettings.showImageName !== false %>">/Image</span>
-                      </th>
-                      
-                      <th>Uptime</th>
-                      <th>Status</th>
-                      <th v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">Resources</th>
+                                :checked="isGroupSelected(group.key)"
+                                :indeterminate.prop="isGroupIndeterminate(group.key)"
+                                @change="toggleGroupSelection(group.key)"
+                                :disabled="areAllGroupContainersDisabled(group.key)"
+                                :aria-label="'Select all containers in group ' + group.title" />
+                      </td>
+                      <td :colspan="<%= dashboardSettings.showImageName !== false ? 5 : 4 %>" class="fw-semibold">
+                        <i class="fa-solid fa-layer-group me-2"></i>{{ group.title }}
+                        <small v-if="group.detail" class="text-muted ms-2">{{ group.detail }}</small>
+                        <small class="text-muted ms-2">({{ group.containers.length }} container{{ group.containers.length === 1 ? '' : 's' }})</small>
+                        <div v-if="group.serviceLinks && group.serviceLinks.length" class="service-links mt-2">
+                          <a v-for="link in group.serviceLinks" :key="link.url" 
+                              class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">
+                            <i class="fa-solid fa-up-right-from-square"></i>
+                            <span>{{ link.label }}</span>
+                          </a>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    <template v-for="group in groupedContainers" :key="group.key">
-                      <tr class="compose-group-row">
-                        <td class="group-select-cell">
+                    
+                    <template v-for="container in group.containers" :key="container.ID">
+                      <tr class="container-main-row">
+                        <td class="container-select-cell">
                           <input type="checkbox" class="form-check-input"
-                                 :checked="isGroupSelected(group.key)"
-                                 :indeterminate.prop="isGroupIndeterminate(group.key)"
-                                 @change="toggleGroupSelection(group.key)"
-                                 :disabled="areAllGroupContainersDisabled(group.key)"
-                                 :aria-label="'Select all containers in group ' + group.title" />
+                                  :value="container.Names"
+                                  v-model="selectedContainers"
+                                  :disabled="!<%= can.canRestartContainers %> || isContainerPending(container)"
+                                  :aria-label="'Select container ' + container.Names" />
                         </td>
-                        <td :colspan="<%= dashboardSettings.showImageName !== false ? 5 : 4 %>" class="fw-semibold">
-                          <i class="fa-solid fa-layer-group me-2"></i>{{ group.title }}
-                          <small v-if="group.detail" class="text-muted ms-2">{{ group.detail }}</small>
-                          <small class="text-muted ms-2">({{ group.containers.length }} container{{ group.containers.length === 1 ? '' : 's' }})</small>
-                          <div v-if="group.serviceLinks && group.serviceLinks.length" class="service-links mt-2">
-                            <a v-for="link in group.serviceLinks" :key="link.url" 
-                               class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">
+                        <td>
+                          <div class="fw-semibold">{{ container.Names }}</div>
+                          <small v-if="<%= dashboardSettings.showContainerHash !== false %>" class="text-muted block hash-text">{{ container.ID.slice(0, 12) }}</small>
+                          <small v-if="<%= dashboardSettings.showImageName !== false %>" class="text-muted block image-text">{{ container.Image }}</small>
+                          <div v-if="container.serviceLinks && container.serviceLinks.length" class="service-links mt-1">
+                            <a v-for="link in container.serviceLinks" :key="link.url"
+                                class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">
                               <i class="fa-solid fa-up-right-from-square"></i>
                               <span>{{ link.label }}</span>
                             </a>
                           </div>
                         </td>
+                        <td>{{ getUptime(container) }}</td>
+                        <td>
+                          <span :class="getStatusClass(container)" :title="getStatusLabel(container)">
+                            {{ getStatusLabel(container) }}
+                          </span>
+                        </td>
+
+                        <td v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">
+                          <div class="resource-block">
+                            <span class="resource-item">
+                              <i class="fa-solid fa-microchip resource-icon"></i>
+                              <strong>CPU</strong> {{ container.resourceCpu || '-' }}
+                            </span>
+                            <span class="resource-item">
+                              <i class="fa-solid fa-memory resource-icon"></i>
+                              <strong>Mem</strong> {{ container.resourceMemory || '-' }}
+                            </span>
+                            <span class="resource-item">
+                              <i class="fa-solid fa-network-wired resource-icon"></i>
+                              <strong>Net</strong> {{ container.resourceNetIo || '-' }}
+                            </span>
+                            <span class="resource-item">
+                              <i class="fa-solid fa-hard-drive resource-icon"></i>
+                              <strong>Disk</strong> {{ container.resourceBlockIo || '-' }}
+                            </span>
+                          </div>
+                        </td>
                       </tr>
                       
-                      <template v-for="container in group.containers" :key="container.ID">
-                        <tr class="container-main-row">
-                          <td class="container-select-cell">
-                            <input type="checkbox" class="form-check-input"
-                                   :value="container.Names"
-                                   v-model="selectedContainers"
-                                   :disabled="!<%= can.canRestartContainers %> || isContainerPending(container)"
-                                   :aria-label="'Select container ' + container.Names" />
-                          </td>
-                          <td>
-                            <div class="fw-semibold">{{ container.Names }}</div>
-                            <small v-if="<%= dashboardSettings.showContainerHash !== false %>" class="text-muted block hash-text">{{ container.ID.slice(0, 12) }}</small>
-                            <small v-if="<%= dashboardSettings.showImageName !== false %>" class="text-muted block image-text">{{ container.Image }}</small>
-                            <div v-if="container.serviceLinks && container.serviceLinks.length" class="service-links mt-1">
-                              <a v-for="link in container.serviceLinks" :key="link.url"
-                                 class="service-link" :href="link.url" target="_blank" rel="noopener noreferrer">
-                                <i class="fa-solid fa-up-right-from-square"></i>
-                                <span>{{ link.label }}</span>
-                              </a>
-                            </div>
-                          </td>
-                          <td>{{ getUptime(container) }}</td>
-                          <td>
-                            <span :class="getStatusClass(container)" :title="getStatusLabel(container)">
-                              {{ getStatusLabel(container) }}
+                      <tr v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-mobile-row">
+                        <td class="container-select-cell"></td>
+                        <td :colspan="<%= dashboardSettings.showImageName !== false ? 3 : 2 %>">
+                          <div class="resource-block resource-block-mobile">
+                            <span class="resource-item">
+                              <i class="fa-solid fa-microchip resource-icon"></i>
+                              <strong>CPU</strong> {{ container.resourceCpu || '-' }}
                             </span>
-                          </td>
-
-                          <td v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-desktop-col">
-                            <div class="resource-block">
-                              <span class="resource-item">
-                                <i class="fa-solid fa-microchip resource-icon"></i>
-                                <strong>CPU</strong> {{ container.resourceCpu || '-' }}
-                              </span>
-                              <span class="resource-item">
-                                <i class="fa-solid fa-memory resource-icon"></i>
-                                <strong>Mem</strong> {{ container.resourceMemory || '-' }}
-                              </span>
-                              <span class="resource-item">
-                                <i class="fa-solid fa-network-wired resource-icon"></i>
-                                <strong>Net</strong> {{ container.resourceNetIo || '-' }}
-                              </span>
-                              <span class="resource-item">
-                                <i class="fa-solid fa-hard-drive resource-icon"></i>
-                                <strong>Disk</strong> {{ container.resourceBlockIo || '-' }}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                        
-                        <tr v-if="<%= dashboardSettings.showContainerResources !== false %>" class="resource-mobile-row">
-                          <td class="container-select-cell"></td>
-                          <td :colspan="<%= dashboardSettings.showImageName !== false ? 3 : 2 %>">
-                            <div class="resource-block resource-block-mobile">
-                              <span class="resource-item">
-                                <i class="fa-solid fa-microchip resource-icon"></i>
-                                <strong>CPU</strong> {{ container.resourceCpu || '-' }}
-                              </span>
-                              <span class="resource-item">
-                                <i class="fa-solid fa-memory resource-icon"></i>
-                                <strong>Mem</strong> {{ container.resourceMemory || '-' }}
-                              </span>
-                              <span class="resource-item">
-                                <i class="fa-solid fa-network-wired resource-icon"></i>
-                                <strong>Net</strong> {{ container.resourceNetIo || '-' }}
-                              </span>
-                              <span class="resource-item">
-                                <i class="fa-solid fa-hard-drive resource-icon"></i>
-                                <strong>Disk</strong> {{ container.resourceBlockIo || '-' }}
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                      </template>
+                            <span class="resource-item">
+                              <i class="fa-solid fa-memory resource-icon"></i>
+                              <strong>Mem</strong> {{ container.resourceMemory || '-' }}
+                            </span>
+                            <span class="resource-item">
+                              <i class="fa-solid fa-network-wired resource-icon"></i>
+                              <strong>Net</strong> {{ container.resourceNetIo || '-' }}
+                            </span>
+                            <span class="resource-item">
+                              <i class="fa-solid fa-hard-drive resource-icon"></i>
+                              <strong>Disk</strong> {{ container.resourceBlockIo || '-' }}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
                     </template>
-                  </tbody>
-                </table>
-                <div v-else class="text-center text-muted py-4">
-                  No containers detected.
-                </div>
+                  </template>
+                </tbody>
+              </table>
+              <div v-else class="text-center text-muted py-4">
+                No containers detected.
               </div>
             </div>
           </div>
+        </div>
+        <!-- User Menu & Permissions -->
+        <div class="col-12 col-xl-3">
+          <div class="panel mb-3 d-none d-md-block">
+            <h2 class="h5 mb-3"><i class="fa-solid fa-user me-2"></i>User Menu</h2>
+            <%- include('partials/userAdministrationBlock') %>
+          </div>
 
-          <!-- Sidebar -->
-          <div class="col-12 col-xl-3">
-            <div class="panel mb-3 d-none d-md-block">
-              <h2 class="h5 mb-3"><i class="fa-solid fa-user me-2"></i>User Menu</h2>
-              <%- include('partials/userAdministrationBlock') %>
-            </div>
-
-            <div class="panel mb-3">
-              <h2 class="h5 mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Permissions</h2>
-              <ul class="list-unstyled mb-0 small">
-                <li class="mb-2"><i class="fa-solid fa-eye me-2"></i>View containers: <strong><%= can.canViewContainers ? 'Yes' : 'No' %></strong></li>
-                <li class="mb-2"><i class="fa-solid fa-rotate-right me-2"></i>Restart containers: <strong><%= can.canRestartContainers ? 'Yes' : 'No' %></strong></li>
-                <li class="mb-2"><i class="fa-solid fa-power-off me-2"></i>Restart host: <strong><%= can.canRestartHost ? 'Yes' : 'No' %></strong></li>
-                <li class="mb-2"><i class="fa-solid fa-right-left me-2"></i>Switch servers: <strong><%= can.canSwitchServers ? 'Yes' : 'No' %></strong></li>
-                <li class="mb-2"><i class="fa-solid fa-users me-2"></i>Manage users: <strong><%= can.canManageUsers ? 'Yes' : 'No' %></strong></li>
-                <li class="mb-2"><i class="fa-solid fa-server me-2"></i>Manage servers: <strong><%= can.canManageServers ? 'Yes' : 'No' %></strong></li>
-                <li><i class="fa-solid fa-sliders me-2"></i>Manage settings: <strong><%= can.canManageSettings ? 'Yes' : 'No' %></strong></li>
-              </ul>
-            </div>
+          <div class="panel mb-3">
+            <h2 class="h5 mb-3"><i class="fa-solid fa-shield-halved me-2"></i>Permissions</h2>
+            <ul class="list-unstyled mb-0 small">
+              <li class="mb-2"><i class="fa-solid fa-eye me-2"></i>View containers: <strong><%= can.canViewContainers ? 'Yes' : 'No' %></strong></li>
+              <li class="mb-2"><i class="fa-solid fa-rotate-right me-2"></i>Restart containers: <strong><%= can.canRestartContainers ? 'Yes' : 'No' %></strong></li>
+              <li class="mb-2"><i class="fa-solid fa-power-off me-2"></i>Restart host: <strong><%= can.canRestartHost ? 'Yes' : 'No' %></strong></li>
+              <li class="mb-2"><i class="fa-solid fa-right-left me-2"></i>Switch servers: <strong><%= can.canSwitchServers ? 'Yes' : 'No' %></strong></li>
+              <li class="mb-2"><i class="fa-solid fa-users me-2"></i>Manage users: <strong><%= can.canManageUsers ? 'Yes' : 'No' %></strong></li>
+              <li class="mb-2"><i class="fa-solid fa-server me-2"></i>Manage servers: <strong><%= can.canManageServers ? 'Yes' : 'No' %></strong></li>
+              <li><i class="fa-solid fa-sliders me-2"></i>Manage settings: <strong><%= can.canManageSettings ? 'Yes' : 'No' %></strong></li>
+            </ul>
           </div>
         </div>
-      </template>
+      </div>
     </div>
   </div>
 
@@ -355,6 +368,8 @@
       data() {
         return {
           loading: true,
+          showError: false,
+          errorMessage: '',
           containers: [],
           groupedContainers: [],
           serverMetrics: {
@@ -433,13 +448,32 @@
             const response = await fetch('/api/dashboard', { credentials: 'same-origin' });
             
             if (!response.ok) {
-              console.error('Failed to fetch dashboard data');
+              // Handle server errors (e.g., Docker not running, remote server unreachable)
+              let errorMsg = 'Failed to load dashboard data';
+              try {
+                const result = await response.json();
+                if (result.error) {
+                  errorMsg = result.error;
+                }
+              } catch (e) {
+                // If we can't parse JSON, use status text
+                errorMsg = `Server error: ${response.statusText || response.status}`;
+              }
+              
+              this.showError = true;
+              this.errorMessage = errorMsg;
+              this.loading = false;
+              console.error('Failed to fetch dashboard data:', errorMsg);
               return;
             }
             
             const result = await response.json();
             
             if (result.success && result.data) {
+              // Clear any previous errors
+              this.showError = false;
+              this.errorMessage = '';
+              
               this.containers = result.data.containers;
               this.groupedContainers = result.data.groupedContainers;
               this.serverMetrics = result.data.serverMetrics;
@@ -451,6 +485,9 @@
               this.loading = false;
             }
           } catch (error) {
+            this.showError = true;
+            this.errorMessage = `Network error: ${error.message || 'Unable to connect to server'}`;
+            this.loading = false;
             console.error('Error fetching dashboard data:', error);
           }
         },
