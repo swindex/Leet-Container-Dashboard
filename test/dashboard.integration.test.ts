@@ -248,6 +248,8 @@ describe("dashboard page integration - statically rendered content only", () => 
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
       restartHostMachine: restartHostMock,
     });
 
@@ -258,6 +260,8 @@ describe("dashboard page integration - statically rendered content only", () => 
     expect(dashboardRes.text).toContain("Selected:");
     expect(dashboardRes.text).toContain("Admin Permission Required");
   });
+
+
 
   it("shows user management access on dashboard only for admin", async () => {
     const app = createApp({

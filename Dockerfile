@@ -8,6 +8,10 @@ RUN apk add --no-cache docker-cli
 COPY package.json bun.lock* ./
 RUN bun install --production --frozen-lockfile
 
+# Copy scripts and run copy-vendor to prepare frontend assets
+COPY scripts ./scripts
+RUN bun run copy-vendor
+
 # Copy source code
 COPY src ./src
 

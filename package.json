@@ -1,25 +1,30 @@
 {
   "name": "home-server-panel",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "private": true,
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
-    "start": "kill-port 3000 && bun run src/index.ts",
-    "dev": "kill-port 3000 && bun --watch src/index.ts",
+    "start": "bun run copy-vendor && kill-port 3000 && bun run src/index.ts",
+    "dev": "bun run copy-vendor && kill-port 3000 && bun --watch src/index.ts",
     "test": "vitest run --no-file-parallelism",
     "docker-dev": "docker compose -f docker-compose.dev.yml up --build",
-    "tag": "bun run scripts/git-tag.ts && bun run scripts/git-tag-push.ts"
+    "tag": "bun run scripts/git-tag.ts && bun run scripts/git-tag-push.ts",
+    "fetch-icons": "bun run scripts/fetch-icons.ts",
+    "copy-vendor": "bun run scripts/copy-vendor.ts"
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.2.0",
     "bcryptjs": "^2.4.3",
+    "bootstrap": "^5.3.8",
     "cookie-parser": "^1.4.6",
     "dotenv": "^16.4.5",
     "ejs": "^3.1.10",
     "express": "^4.19.2",
     "joi": "^18.0.2",
     "multer": "^2.0.2",
-    "ssh2": "^1.16.0"
+    "ssh2": "^1.16.0",
+    "vue": "^3.5.29"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
@@ -31,6 +36,7 @@
     "@types/ssh2": "^1.15.5",
     "@types/supertest": "^6.0.3",
     "kill-port": "^2.0.1",
+    "sharp": "^0.34.5",
     "supertest": "^7.1.1",
     "typescript": "^5.3.3",
     "vitest": "^2.1.8"

@@ -553,3 +553,234 @@ small.block {
     padding: 0.75rem;
   }
 }
+
+.hs-page-nav {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.hs-page-nav .btn.active {
+  background: #0f3f4c;
+  border-color: #00c9d2;
+  color: #d4fbff;
+}
+
+.launchpad-toggle .form-check-input {
+  cursor: pointer;
+}
+
+.launchpad-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.launchpad-tile-wrapper {
+  position: relative;
+}
+
+.launchpad-tile {
+  display: flex;
+  gap: 0.9rem;
+  align-items: center;
+  background: rgba(9, 16, 24, 0.85);
+  border: 1px solid #284661;
+  border-radius: 14px;
+  padding: 0.9rem;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  overflow: hidden;
+  height: 100%;
+}
+
+.launchpad-tile:hover,
+.launchpad-tile:focus {
+  border-color: #00c9d2;
+  box-shadow: 0 0 0 1px rgba(0, 201, 210, 0.25);
+}
+
+.launchpad-stopped-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 2.5rem 2.5rem 0 0;
+  border-color: #ff4444 transparent transparent transparent;
+  border-top-left-radius: 14px;
+  z-index: 1;
+}
+
+.launchpad-stopped-indicator i {
+  position: absolute;
+  top: -2.2rem;
+  left: 0.2rem;
+  font-size: 1rem;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.launchpad-tile-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.launchpad-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
+.launchpad-tile-content {
+  min-width: 0;
+  flex: 1;
+}
+
+.launchpad-url {
+  font-size: 0.78rem;
+  color: #82d8ff;
+  word-break: break-all;
+}
+
+.launchpad-tile-menu {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 10;
+}
+
+.launchpad-menu-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(9, 16, 24, 0.9);
+  border: 1px solid #284661;
+  color: #d6e7ff;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.launchpad-tile-wrapper:hover .launchpad-menu-btn,
+.launchpad-menu-btn:focus,
+.launchpad-menu-btn[aria-expanded="true"] {
+  opacity: 1;
+}
+
+.launchpad-menu-btn:hover {
+  background: #1a2838;
+  border-color: #2f455e;
+  color: #ffffff;
+}
+
+.launchpad-tile-menu .dropdown-menu {
+  background: #101923;
+  border: 1px solid #1b2a3b;
+  border-radius: 10px;
+  padding: 0.35rem;
+  min-width: 8rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.launchpad-tile-menu .dropdown-item {
+  color: #e8f2ff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: background 0.15s ease;
+}
+
+.launchpad-tile-menu .dropdown-item:hover,
+.launchpad-tile-menu .dropdown-item:focus {
+  background: #1a2838;
+  color: #ffffff;
+}
+
+.launchpad-tile-menu .dropdown-item i {
+  width: 1.2rem;
+}
+
+.launchpad-tile-menu form {
+  margin: 0;
+}
+
+.launchpad-tile-menu form button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+}
+
+.launchpad-icon-default { background: linear-gradient(135deg, #3b82f6, #06b6d4); }
+.launchpad-icon-emby { background: linear-gradient(135deg, #6d28d9, #a855f7); }
+.launchpad-icon-immich { background: linear-gradient(135deg, #22c55e, #14b8a6); }
+.launchpad-icon-plex { background: linear-gradient(135deg, #f59e0b, #f97316); }
+.launchpad-icon-jellyfin { background: linear-gradient(135deg, #8b5cf6, #6366f1); }
+.launchpad-icon-grafana { background: linear-gradient(135deg, #f97316, #ef4444); }
+.launchpad-icon-portainer { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.launchpad-icon-nextcloud { background: linear-gradient(135deg, #0284c7, #38bdf8); }
+
+.hs-theme-light .hs-page-nav .btn.active {
+  background: #c6eef3;
+  border-color: #4fb6c0;
+  color: #163743;
+}
+
+.hs-theme-light .launchpad-tile {
+  background: #f8fbff;
+  border-color: #c9d8e7;
+}
+
+.hs-theme-light .launchpad-url {
+  color: #1d5f99;
+}
+
+.hs-theme-light .launchpad-menu-btn {
+  background: rgba(248, 251, 255, 0.95);
+  border-color: #c9d8e7;
+  color: #213142;
+}
+
+.hs-theme-light .launchpad-menu-btn:hover {
+  background: #e8f0f8;
+  border-color: #c6d7e8;
+  color: #162433;
+}
+
+.hs-theme-light .launchpad-tile-menu .dropdown-menu {
+  background: #ffffff;
+  border-color: #d6e1ec;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.hs-theme-light .launchpad-tile-menu .dropdown-item {
+  color: #213142;
+}
+
+.hs-theme-light .launchpad-tile-menu .dropdown-item:hover,
+.hs-theme-light .launchpad-tile-menu .dropdown-item:focus {
+  background: #e8f0f8;
+  color: #162433;
+}
+
+/* Mobile-specific overrides for launchpad (must be after launchpad styles) */
+@media (max-width: 767.98px) {
+  /* Always show launchpad menu button on mobile (no hover on touch devices) */
+  .launchpad-menu-btn {
+    opacity: 1 !important;
+  }
+}

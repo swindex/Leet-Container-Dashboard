@@ -60,26 +60,36 @@ export async function ensureDataSeeded(): Promise<void> {
 
   await fs.mkdir(targetDir, { recursive: true });
   const targetEntries = await fs.readdir(targetDir);
-  if (targetEntries.length > 0) {
-    console.log(`Target data directory ${targetDir} is not empty. Skipping seeding to avoid overwriting existing data.`);
-    return;
-  }
+  if (targetEntries.length == 0) {
 
-  console.log(`Seeding data from ${sourceDir} to ${targetDir}...`);
+    console.log(`Seeding data from ${sourceDir} to ${targetDir}...`);
 
-  let sourceEntries: Awaited<ReturnType<typeof fs.readdir>>;
+    let sourceEntries: Awaited<ReturnType<typeof fs.readdir>>;
+    try {
+      sourceEntries = await fs.readdir(sourceDir, { withFileTypes: true });
+    } catch (err) {
+      console.error(`Failed to read data seed directory ${sourceDir}: ${err}`);
+      return;
+    }
+
+    for (const entry of sourceEntries) {
+      const sourcePath = path.join(sourceDir, entry.name);
+      const targetPath = path.join(targetDir, entry.name);
+      await fs.cp(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: false });
+    }
+
+    console.log(`Data seeded from ${sourceDir} to ${targetDir}`);
+  } 
+
+  // Copy data-seed/uploads/launchpad-icons if they don't exist
+  const sourceIconsDir = path.join(sourceDir, "uploads", "launchpad-icons");
+  const targetIconsDir = path.join(targetDir, "uploads", "launchpad-icons");
+
   try {
-    sourceEntries = await fs.readdir(sourceDir, { withFileTypes: true });
+      await fs.cp(sourceIconsDir, targetIconsDir, { recursive: true });
+      console.log(`Copied launchpad icons from ${sourceIconsDir} to ${targetIconsDir}`);
   } catch (err) {
-    console.error(`Failed to read data seed directory ${sourceDir}: ${err}`);
-    return;
+    console.error(`Failed to copy launchpad icons: ${err}`);
   }
 
-  for (const entry of sourceEntries) {
-    const sourcePath = path.join(sourceDir, entry.name);
-    const targetPath = path.join(targetDir, entry.name);
-    await fs.cp(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: false });
-  }
-
-  console.log(`Data seeded from ${sourceDir} to ${targetDir}`);
 }

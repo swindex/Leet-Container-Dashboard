@@ -24,6 +24,28 @@ Try out the live demo at: **https://lcd.snapwebapps.com/**
 - User administration (create, update, enable/disable, delete)
 - Dashboard customization (theme, title/slogan, background image)
 - Server and container resource metrics
+- Launcher page with beautiful service tiles for HTTP-exposed containers
+
+
+### Launcher
+
+The launcher automatically discovers containers with exposed HTTP/HTTPS ports across all your configured servers. Container information is synced automatically every 30 seconds in the background, and services are stored in `data/launchpad.json`.
+
+**Auto-Discovery Features:**
+- Automatically detects containers with TCP ports
+- Smart icon recognition for popular services (Plex, Jellyfin, Portainer, Nextcloud, etc.)
+- Tracks service status (running, stopped, removed)
+- Multi-server support with per-server service tracking
+
+**Customization:**
+All launcher tiles can be customized through the dashboard UI (future feature) or by editing `data/launchpad.json`:
+- **Name** - Display name for the service
+- **Public URL** - Override the local URL with a public domain
+- **Icon** - Font Awesome icon class (e.g., `fa-solid fa-rocket`)
+- **Icon Color** - Custom color class
+- **Hidden** - Hide from launcher (still visible when "Show all" is enabled)
+
+Services are automatically discovered on startup and kept in sync with your running containers.
 
 ## Tech Stack
 
