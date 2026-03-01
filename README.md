@@ -27,18 +27,25 @@ Try out the live demo at: **https://lcd.snapwebapps.com/**
 - Launcher page with beautiful service tiles for HTTP-exposed containers
 
 
-### Launcher labels (optional)
+### Launcher
 
-The launcher automatically shows containers that expose TCP ports.
-You can customize launcher tiles per-container using Docker labels:
+The launcher automatically discovers containers with exposed HTTP/HTTPS ports across all your configured servers. Container information is synced automatically every 30 seconds in the background, and services are stored in `data/launchpad.json`.
 
-- `lcd.launcher.name` → Override tile name.
-- `lcd.launcher.public_url` → URL to open instead of local server URL.
-- `lcd.launcher.hidden=true` → Hide tile by default (still visible when "Show all" is enabled).
-- `lcd.launcher.icon` → Override Font Awesome icon class (example: `fa-solid fa-film`).
-- `lcd.launcher.icon_color` → Override icon color class.
+**Auto-Discovery Features:**
+- Automatically detects containers with TCP ports
+- Smart icon recognition for popular services (Plex, Jellyfin, Portainer, Nextcloud, etc.)
+- Tracks service status (running, stopped, removed)
+- Multi-server support with per-server service tracking
 
-If `lcd.launcher.public_url` is not set, launcher falls back to local URL using server host + exposed port.
+**Customization:**
+All launcher tiles can be customized through the dashboard UI (future feature) or by editing `data/launchpad.json`:
+- **Name** - Display name for the service
+- **Public URL** - Override the local URL with a public domain
+- **Icon** - Font Awesome icon class (e.g., `fa-solid fa-rocket`)
+- **Icon Color** - Custom color class
+- **Hidden** - Hide from launcher (still visible when "Show all" is enabled)
+
+Services are automatically discovered on startup and kept in sync with your running containers.
 
 ## Tech Stack
 

@@ -49,6 +49,11 @@ import {
   updateRemoteServer,
 } from "./lib/remoteServers.js";
 import {
+  listLaunchpadItems,
+  shouldSyncImmediately,
+} from "./lib/launchpadItems.js";
+import { syncLaunchpadItemsForServer } from "./lib/launchpadSync.js";
+import {
   DEFAULT_DASHBOARD_SETTINGS,
   getDashboardBackgroundUploadsPath,
   getDashboardSettings,
@@ -957,15 +962,45 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
   app.get("/api/launcher", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
     try {
-      const dashboardData = await fetchDashboardData(req, res);
+      const { servers, defaultServerId } = await listRemoteServers();
+      const selectedFromSession = getActiveServerSessionId(req);
+      const { server: activeServer } = await resolveServerByIdOrDefault(selectedFromSession);
+      
+      // Read launchpad items from file
+      const allItems = await listLaunchpadItems();
+      
+      // Create a set of enabled server IDs for quick lookup
+      const enabledServerIds = new Set(
+        servers.filter(server => server.enabled).map(server => server.id)
+      );
+      
+      // Filter items from all enabled servers and non-removed status
+      const tiles = allItems
+        .filter(item => 
+          enabledServerIds.has(item.serverId) && 
+          item.status !== "removed"
+        )
+        .map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.containerName,
+          iconClass: item.icon,
+          iconColorClass: item.iconColor,
+          launchUrl: item.publicUrl || item.localUrl,
+          localUrl: item.localUrl,
+          publicUrl: item.publicUrl,
+          hidden: item.hidden,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      
       res.json({
         success: true,
         data: {
-          launcherTiles: dashboardData.launcherTiles,
-          servers: dashboardData.servers,
-          activeServerId: dashboardData.activeServer.id,
-          defaultServerId: dashboardData.defaultServerId,
-          unavailableServerIds: dashboardData.unavailableServerIds,
+          launcherTiles: tiles,
+          servers,
+          activeServerId: activeServer.id,
+          defaultServerId,
+          unavailableServerIds: [],
         },
       });
     } catch (e) {
@@ -1912,6 +1947,41 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
       }
     }
   );
+
+  // Background launchpad sync for all servers
+  async function syncAllServersLaunchpad() {
+    try {
+      const { servers } = await listRemoteServers();
+      
+      for (const server of servers) {
+        if (!server.enabled) {
+          continue;
+        }
+        
+        try {
+          const containers = await deps.listContainers(server);
+          await syncLaunchpadItemsForServer(server, containers);
+        } catch (error) {
+          console.warn(`[Launchpad] Sync failed for ${server.name || server.id}:`, (error as Error).message);
+        }
+      }
+    } catch (error) {
+      console.error("[Launchpad] Failed to sync all servers:", (error as Error).message);
+    }
+  }
+
+  // Run immediate sync if data is old or empty
+  void shouldSyncImmediately().then((shouldSync) => {
+    if (shouldSync) {
+      console.log("[Launchpad] Running initial sync...");
+      void syncAllServersLaunchpad();
+    }
+  });
+
+  // Background sync every 30 seconds
+  setInterval(() => {
+    void syncAllServersLaunchpad();
+  }, 30_000);
 
   return app;
 }
