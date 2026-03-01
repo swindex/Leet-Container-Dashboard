@@ -123,27 +123,28 @@ export async function syncLaunchpadItemsForServer(
     }
   }
 
-  // Track which containers have HTTP ports
+  // Create a map of all containers by ID for quick lookup
+  const containerMap = new Map<string, DockerContainer>();
+  for (const container of containers) {
+    containerMap.set(container.ID, container);
+  }
+
   const serviceHost = getServiceHost(server);
-  const containersWithPorts = containers.filter((c) => {
-    const links = inferServiceLinksFromPorts(c.Ports || "", serviceHost);
-    return links.length > 0;
-  });
 
-  // Process discovered containers
-  for (const container of containersWithPorts) {
-    const serviceLinks = inferServiceLinksFromPorts(container.Ports || "", serviceHost);
-    if (!serviceLinks.length) {
-      continue;
-    }
-
+  // Process ALL containers from the server
+  for (const container of containers) {
     const existing = existingMap.get(container.ID);
     const isRunning = isContainerRunning(container);
     const newStatus = isRunning ? "running" : "stopped";
+    const serviceLinks = inferServiceLinksFromPorts(container.Ports || "", serviceHost);
     const localUrl = serviceLinks[0]?.url || "";
 
     if (!existing) {
-      // NEW CONTAINER: Add to launchpad
+      // NEW CONTAINER: Only add if it has HTTP ports visible
+      if (serviceLinks.length === 0) {
+        continue;
+      }
+
       const iconPreset = inferLauncherIcon(container);
       file.items.push({
         id: crypto.randomUUID(),
@@ -151,6 +152,7 @@ export async function syncLaunchpadItemsForServer(
         containerId: container.ID,
         containerName: container.Names,
         name: container.Names,
+        description: undefined,
         publicUrl: "",
         localUrl,
         icon: iconPreset.iconClass,
@@ -163,7 +165,7 @@ export async function syncLaunchpadItemsForServer(
       hasChanges = true;
       console.log(`[Launchpad] Discovered new service: ${container.Names} on ${server.name || server.id}`);
     } else {
-      // EXISTING CONTAINER: Update if changed
+      // EXISTING CONTAINER: Update status and info regardless of port visibility
       let itemChanged = false;
 
       if (existing.status !== newStatus) {
@@ -176,7 +178,8 @@ export async function syncLaunchpadItemsForServer(
         itemChanged = true;
       }
 
-      if (existing.localUrl !== localUrl) {
+      // Only update localUrl if ports are visible (preserve existing URL when stopped)
+      if (localUrl && existing.localUrl !== localUrl) {
         existing.localUrl = localUrl;
         itemChanged = true;
       }
@@ -191,7 +194,7 @@ export async function syncLaunchpadItemsForServer(
     }
   }
 
-  // Mark remaining items as removed (they're no longer in the container list)
+  // Mark remaining items as removed (they're no longer in the container list at all)
   for (const [containerId, item] of existingMap) {
     if (item.status !== "removed") {
       item.status = "removed";
@@ -206,7 +209,7 @@ export async function syncLaunchpadItemsForServer(
   // Only write if there are actual changes
   if (hasChanges) {
     await writeLaunchpadFile(file);
-    console.log(`[Launchpad] Synced ${server.name || server.id}: ${containersWithPorts.length} services`);
+    console.log(`[Launchpad] Synced ${server.name || server.id}: ${containers.length} containers processed`);
   }
 
   return hasChanges;

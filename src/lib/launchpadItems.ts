@@ -13,6 +13,7 @@ export type LaunchpadItem = {
   containerId: string;
   containerName: string;
   name: string;
+  description?: string;
   publicUrl: string;
   localUrl: string;
   icon: string;
@@ -44,10 +45,11 @@ function validateLaunchpadFile(input: unknown): LaunchpadFile {
       containerId: typeof partial.containerId === "string" ? partial.containerId : "",
       containerName: typeof partial.containerName === "string" ? partial.containerName : "",
       name: typeof partial.name === "string" ? partial.name : "",
+      description: typeof partial.description === "string" ? partial.description : undefined,
       publicUrl: typeof partial.publicUrl === "string" ? partial.publicUrl : "",
       localUrl: typeof partial.localUrl === "string" ? partial.localUrl : "",
       icon: typeof partial.icon === "string" ? partial.icon : "fa-solid fa-rocket",
-      iconColor: typeof partial.iconColor === "string" ? partial.iconColor : "launcher-icon-default",
+      iconColor: typeof partial.iconColor === "string" ? partial.iconColor : "launchpad-icon-default",
       hidden: typeof partial.hidden === "boolean" ? partial.hidden : false,
       status: (["running", "stopped", "removed"].includes(partial.status as string)
         ? partial.status
@@ -111,6 +113,7 @@ export async function createLaunchpadItem(input: {
   containerId: string;
   containerName: string;
   name: string;
+  description?: string;
   publicUrl?: string;
   localUrl?: string;
   icon?: string;
@@ -125,10 +128,11 @@ export async function createLaunchpadItem(input: {
     containerId: input.containerId,
     containerName: input.containerName,
     name: input.name,
+    description: input.description,
     publicUrl: input.publicUrl || "",
     localUrl: input.localUrl || "",
     icon: input.icon || "fa-solid fa-rocket",
-    iconColor: input.iconColor || "launcher-icon-default",
+    iconColor: input.iconColor || "launchpad-icon-default",
     hidden: input.hidden ?? false,
     status: "stopped",
     lastSeen: new Date().toISOString(),
@@ -142,6 +146,7 @@ export async function updateLaunchpadItem(
   id: string,
   input: {
     name?: string;
+    description?: string;
     publicUrl?: string;
     icon?: string;
     iconColor?: string;
@@ -158,6 +163,9 @@ export async function updateLaunchpadItem(
   if (typeof input.name === "string") {
     target.name = input.name;
   }
+  if (typeof input.description === "string") {
+    target.description = input.description || undefined;
+  }
   if (typeof input.publicUrl === "string") {
     target.publicUrl = input.publicUrl;
   }
@@ -172,6 +180,20 @@ export async function updateLaunchpadItem(
   }
 
   await writeLaunchpadFile(file);
+}
+
+export async function toggleLaunchpadItemVisibility(id: string): Promise<boolean> {
+  const file = await readLaunchpadFile();
+  const target = file.items.find((item) => item.id === id);
+
+  if (!target) {
+    throw new Error("Launchpad item not found");
+  }
+
+  target.hidden = !target.hidden;
+  await writeLaunchpadFile(file);
+  
+  return target.hidden;
 }
 
 export async function deleteLaunchpadItem(id: string): Promise<void> {

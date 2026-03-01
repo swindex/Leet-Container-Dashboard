@@ -203,7 +203,12 @@ function fromCookieSession(value: string): SessionPayload | null {
       return null;
     }
     return parsed;
-  } catch {
+  } catch (error) {
+    // Session decryption failed - typically caused by COOKIE_SECRET change
+    // User will be logged out and redirected to login by requireAuth
+    if (error instanceof Error && error.message.includes("Unsupported state or unable to authenticate data")) {
+      console.warn("Session decryption failed: COOKIE_SECRET likely changed since session was created");
+    }
     return null;
   }
 }

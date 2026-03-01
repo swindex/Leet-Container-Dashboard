@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= dashboardSettings.appTitle %> - Launchpad</title>
+  <link rel="icon" href="/public/logo.png" type="image/png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link href="/public/vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="/public/vendor/fontawesome/css/all.min.css" rel="stylesheet" />
+  <link href="/public/styles.css" rel="stylesheet" />
+</head>
+<body class="<%= pageBodyClass %>" data-hs-bg-image="<%= pageBackgroundImagePath %>">
+  <%- include('partials/demoBanner') %>
+
+  <div id="app">
+    <div class="container py-4">
+      <div class="panel mb-4">
+        <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+          <div>
+            <h1 class="mb-2"><i class="fa-solid fa-rocket me-2"></i><%= dashboardSettings.appTitle %></h1>
+            <p class="text-muted mb-0"><%= dashboardSettings.appSlogan %></p>
+          </div>
+          <nav class="hs-page-nav" aria-label="Primary navigation">
+            <a href="/" class="btn btn-sm btn-hs-secondary">
+              <i class="fa-solid fa-table-list me-1"></i>Dashboard
+            </a>
+            <a href="/launchpad" class="btn btn-sm btn-hs-secondary active" aria-current="page">
+              <i class="fa-solid fa-rocket me-1"></i>Launchpad
+            </a>
+          </nav>
+        </div>
+      </div>
+
+      <% if (notice) { %>
+        <div class="alert alert-success hs-flash-alert"><i class="fa-solid fa-circle-check me-2"></i><%= notice %></div>
+      <% } %>
+      <% if (error) { %>
+        <div class="alert alert-danger hs-flash-alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
+      <% } %>
+
+      <div v-if="loading" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
+      </div>
+
+      <div v-else-if="filteredTiles.length" class="launchpad-grid">
+        <div v-for="tile in filteredTiles" :key="tile.id" class="launchpad-tile-wrapper">
+          <a :href="tile.launchUrl" target="_blank" rel="noopener noreferrer" class="launchpad-tile" :class="{ 'launchpad-tile-stopped': tile.status === 'stopped' }">
+            <div v-if="tile.status === 'stopped'" class="launchpad-stopped-indicator">
+              <i class="fa-solid fa-circle-stop"></i>
+            </div>
+            <div class="launchpad-tile-icon" :style="getTileIconStyle(tile)">
+              <i v-if="isIconClass(tile.iconClass)" :class="tile.iconClass || 'fa-solid fa-rocket'"></i>
+              <img v-else :src="tile.iconClass" :alt="tile.name" class="launchpad-icon-img" />
+            </div>
+            <div class="launchpad-tile-content">
+              <h2 class="h6 mb-1">{{ tile.name }}</h2>
+              <p v-if="tile.description" class="text-muted small mb-1 text-break">{{ tile.description }}</p>
+              <span class="launchpad-url">{{ tile.publicUrl || tile.localUrl }}</span>
+            </div>
+          </a>
+          <div class="launchpad-tile-menu dropdown">
+            <button class="btn btn-sm launchpad-menu-btn" type="button" :id="'menu-' + tile.id" data-bs-toggle="dropdown" aria-expanded="false" @click.stop>
+              <i class="fa-solid fa-ellipsis"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end" :aria-labelledby="'menu-' + tile.id">
+              <li>
+                <button class="dropdown-item" type="button" @click="openEditModal(tile)">
+                  <i class="fa-solid fa-pen me-2"></i>Edit
+                </button>
+              </li>
+              <li>
+                <form :action="`/launchpad/${tile.id}/toggle-visibility`" method="post" @submit.prevent="toggleVisibility(tile.id)">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button type="submit" class="dropdown-item">
+                    <i :class="tile.hidden ? 'fa-solid fa-eye me-2' : 'fa-solid fa-eye-slash me-2'"></i>
+                    {{ tile.hidden ? 'Show' : 'Hide' }}
+                  </button>
+                </form>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="panel text-center text-muted py-5">
+        No launchable HTTP services found.
+      </div>
+
+      <div class="panel mt-3">
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+          <div class="text-muted small">Showing services from all enabled servers</div>
+          <div class="form-check form-switch launchpad-toggle">
+            <input class="form-check-input" type="checkbox" id="showAllToggle" v-model="showAll" />
+            <label class="form-check-label" for="showAllToggle">Show all</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal fade" id="edit-launchpad-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title fs-5"><i class="fa-solid fa-pen me-2"></i>Edit Launchpad Item</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="edit-launchpad-form" method="post" enctype="multipart/form-data">
+          <div class="modal-body">
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+            <div class="mb-3">
+              <label for="edit-name" class="form-label">Display Name</label>
+              <input id="edit-name" name="name" type="text" class="form-control hs-input" required maxlength="100" />
+            </div>
+
+            <div class="mb-3">
+              <label for="edit-description" class="form-label">Description (optional)</label>
+              <textarea id="edit-description" name="description" class="form-control hs-input" maxlength="125" rows="2" placeholder="Optional description for this service"></textarea>
+              <div class="form-text text-muted">
+                <span id="description-counter">0</span>/125 characters
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="edit-publicUrl" class="form-label">Public URL (optional)</label>
+              <input id="edit-publicUrl" name="publicUrl" type="url" class="form-control hs-input" placeholder="https://example.com" maxlength="500" />
+              <div class="form-text text-muted">Leave blank to use the local URL</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="edit-icon" class="form-label">Icon</label>
+              <select id="edit-icon" name="icon" class="form-select hs-input">
+                <option value="">Loading icons...</option>
+              </select>
+              <div class="form-text text-muted">Select from available icons</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="edit-iconFile" class="form-label">Or Upload Custom Icon</label>
+              <input id="edit-iconFile" name="iconFile" type="file" class="form-control hs-input" accept="image/png,image/jpeg,image/svg+xml,image/gif,image/webp" <%= isDemoMode ? 'disabled' : '' %> />
+              <div class="form-text text-muted">
+                <% if (isDemoMode) { %>
+                  <span class="text-warning"><i class="fa-solid fa-flask me-1"></i>File uploads are disabled in demo mode</span>
+                <% } else { %>
+                  PNG, JPG, SVG, GIF, or WebP (max 5MB)
+                <% } %>
+              </div>
+            </div>
+
+            <div class="mb-0">
+              <div class="form-check">
+                <input id="edit-hidden" name="hidden" type="checkbox" class="form-check-input" value="true" />
+                <label for="edit-hidden" class="form-check-label">Hide from launchpad</label>
+              </div>
+              <div class="form-text text-muted">Hidden items can be shown using the "Show all" toggle</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-hs-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-hs-primary">
+              <i class="fa-solid fa-floppy-disk me-2"></i>Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/public/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="/public/vendor/vue/vue.global.prod.js"></script>
+  <%- include('partials/footer') %>
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          loading: true,
+          launchpadTiles: [],
+          showAll: false,
+          availableIcons: [],
+          editModal: null,
+          editingTile: null,
+        };
+      },
+      computed: {
+        filteredTiles() {
+          if (this.showAll) {
+            return this.launchpadTiles;
+          }
+          return this.launchpadTiles.filter(tile => !tile.hidden);
+        }
+      },
+      methods: {
+        isIconClass(icon) {
+          // Check if icon is a FontAwesome class (starts with fa-) or looks like a URL/path
+          return icon && (icon.startsWith('fa-') || icon.startsWith('fab-') || icon.startsWith('fas-'));
+        },
+        getTileIconStyle(tile) {
+          // If it's not a FontAwesome class, it's an image path, so no background gradient
+          if (!this.isIconClass(tile.iconClass)) {
+            return 'background: transparent;';
+          }
+          // Otherwise use the iconColorClass if available
+          return '';
+        },
+        async loadIcons() {
+          try {
+            const response = await fetch('/api/launchpad/icons', { credentials: 'same-origin' });
+            if (!response.ok) {
+              return;
+            }
+            const result = await response.json();
+            if (result.success && result.data) {
+              this.availableIcons = result.data.icons || [];
+              this.updateIconDropdown();
+            }
+          } catch (error) {
+            console.error('Failed to load icons', error);
+          }
+        },
+        updateIconDropdown() {
+          const select = document.getElementById('edit-icon');
+          if (!select) return;
+
+          select.innerHTML = '<option value="">-- Select an icon --</option>';
+          
+          this.availableIcons.forEach(icon => {
+            const option = document.createElement('option');
+            option.value = icon.path;
+            option.textContent = icon.filename;
+            select.appendChild(option);
+          });
+        },
+        updateDescriptionCounter() {
+          const textarea = document.getElementById('edit-description');
+          const counter = document.getElementById('description-counter');
+          if (textarea && counter) {
+            counter.textContent = textarea.value.length;
+          }
+        },
+        openEditModal(tile) {
+          this.editingTile = tile;
+          
+          // Populate form fields
+          document.getElementById('edit-name').value = tile.name;
+          document.getElementById('edit-description').value = tile.description || '';
+          document.getElementById('edit-publicUrl').value = tile.publicUrl || '';
+          document.getElementById('edit-hidden').checked = tile.hidden || false;
+          
+          const iconSelect = document.getElementById('edit-icon');
+          if (iconSelect && !this.isIconClass(tile.iconClass)) {
+            iconSelect.value = tile.iconClass;
+          } else {
+            iconSelect.value = '';
+          }
+          
+          // Update character counter
+          this.updateDescriptionCounter();
+          
+          // Update form action
+          const form = document.getElementById('edit-launchpad-form');
+          form.action = `/launchpad/${tile.id}/update`;
+          
+          // Show modal
+          if (!this.editModal) {
+            this.editModal = new bootstrap.Modal(document.getElementById('edit-launchpad-modal'));
+          }
+          this.editModal.show();
+        },
+        async toggleVisibility(tileId) {
+          const form = event.target;
+          const csrfToken = form.querySelector('input[name="_csrf"]').value;
+          
+          try {
+            const response = await fetch(`/launchpad/${tileId}/toggle-visibility`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: `_csrf=${encodeURIComponent(csrfToken)}`,
+              credentials: 'same-origin',
+            });
+            
+            if (response.ok) {
+              // Update the tile's hidden status locally
+              const tile = this.launchpadTiles.find(t => t.id === tileId);
+              if (tile) {
+                tile.hidden = !tile.hidden;
+              }
+            }
+          } catch (error) {
+            console.error('Failed to toggle visibility', error);
+          }
+        },
+      },
+      async mounted() {
+        try {
+          const response = await fetch('/api/launchpad', { credentials: 'same-origin' });
+          if (!response.ok) {
+            return;
+          }
+          const result = await response.json();
+          if (result.success && result.data) {
+            this.launchpadTiles = result.data.launchpadTiles || [];
+          }
+        } catch (error) {
+          console.error('Failed to load launchpad tiles', error);
+        } finally {
+          this.loading = false;
+        }
+
+        // Load available icons
+        await this.loadIcons();
+
+        // Add event listener for description counter
+        const descriptionTextarea = document.getElementById('edit-description');
+        if (descriptionTextarea) {
+          descriptionTextarea.addEventListener('input', () => {
+            const counter = document.getElementById('description-counter');
+            if (counter) {
+              counter.textContent = descriptionTextarea.value.length;
+            }
+          });
+        }
+      }
+    }).mount('#app');
+
+    // Background image
+    (() => {
+      const configuredBackground = document.body.getAttribute('data-hs-bg-image') || '';
+      if (configuredBackground) {
+        document.body.style.setProperty('--hs-bg-image', `url('${configuredBackground.replace(/'/g, "\\'")}')` );
+      }
+    })();
+
+    // Flash alerts
+    (() => {
+      const flashAlerts = Array.from(document.querySelectorAll('.hs-flash-alert'));
+      if (flashAlerts.length) {
+        setTimeout(() => {
+          flashAlerts.forEach((alertEl) => {
+            alertEl.classList.add('hs-flash-alert-hidden');
+            setTimeout(() => alertEl.remove(), 250);
+          });
+        }, 5000);
+      }
+    })();
+  </script>
+</body>
+</html>
