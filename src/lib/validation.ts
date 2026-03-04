@@ -96,23 +96,57 @@ export const serverNameSchema = Joi.string()
     "any.required": "Server name is required",
   });
 
+/**
+ * Validates server hostnames with strict pattern matching to prevent command injection.
+ * 
+ * Security rationale:
+ * - Accepts RFC 1123 compliant hostnames (e.g., example.com, sub.example.com)
+ * - Accepts IPv4 addresses (e.g., 192.168.1.1)
+ * - Accepts IPv6 addresses (e.g., 2001:db8::1, [::1], fe80::1)
+ * - BLOCKS special shell characters: ; | & $ ` ' " \ ( ) < > etc.
+ * - Prevents SSH command injection attacks
+ * 
+ * Design philosophy: Security-focused validation (not strict RFC compliance)
+ * - Primary goal: Block shell metacharacters that could enable command injection
+ * - Secondary goal: Accept valid hostnames/IPs (OS network stack validates them anyway)
+ * 
+ * Examples:
+ * ✅ Valid: "example.com", "192.168.1.100", "server-01.local", "[::1]", "2001:db8::1"
+ * ❌ Invalid: "example.com; rm -rf /", "$(whoami).com", "test|nc"
+ */
 export const serverHostSchema = Joi.string()
   .min(1)
   .max(255)
-  .pattern(/^[a-zA-Z0-9.-]+$/)
+  .pattern(/^(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?|(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)|\[?[0-9a-fA-F:]+\]?)$/)
   .required()
   .messages({
-    "string.pattern.base": "Host must be a valid hostname or IP address",
+    "string.pattern.base": "Host must be a valid hostname (RFC 1123), IPv4, or IPv6 address. No special characters allowed.",
     "string.min": "Host is required",
     "string.max": "Host must be at most {#limit} characters long",
     "any.required": "Host is required",
   });
 
+/**
+ * Validates SSH usernames following POSIX/Linux username conventions.
+ * 
+ * Security rationale:
+ * - Must start with lowercase letter or underscore (standard Unix convention)
+ * - Only allows lowercase letters, digits, underscores, hyphens
+ * - Maximum 32 characters (Linux USERNAME_MAX_LENGTH)
+ * - BLOCKS uppercase letters, spaces, special characters
+ * - Prevents SSH command injection and shell escape attempts
+ * 
+ * Examples:
+ * ✅ Valid: "root", "ubuntu", "deploy_user", "admin-01", "_service"
+ * ❌ Invalid: "Root", "user name", "admin;", "$(whoami)", "user@host"
+ */
 export const serverUsernameSchema = Joi.string()
   .min(1)
-  .max(100)
+  .max(32)
+  .pattern(/^[a-z_][a-z0-9_-]{0,31}$/)
   .required()
   .messages({
+    "string.pattern.base": "Username must start with a lowercase letter or underscore, and contain only lowercase letters, digits, underscores, and hyphens",
     "string.min": "Username is required",
     "string.max": "Username must be at most {#limit} characters long",
     "any.required": "Username is required",

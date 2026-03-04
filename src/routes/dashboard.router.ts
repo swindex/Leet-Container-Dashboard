@@ -35,7 +35,7 @@ type AppDeps = {
   startContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   stopContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   restartContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
-  restartHostMachine: () => Promise<void>;
+  restartHostMachine: (server?: DockerTargetServer) => Promise<void>;
 };
 
 // Helper function to fetch dashboard data (used by both HTML and API routes)
@@ -747,11 +747,14 @@ export function createDashboardRouter(deps: AppDeps) {
     requirePermission(PERMISSIONS.HOST_RESTART),
     async (req, res) => {
       try {
-        await deps.restartHostMachine();
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        await deps.restartHostMachine(server);
 
         console.info("AUDIT host_restart", {
           actor: req.user?.username,
           role: req.user?.role,
+          server: server.id,
+          serverHost: server.host,
           at: new Date().toISOString(),
           result: "success",
         });
