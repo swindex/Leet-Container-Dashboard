@@ -1,8 +1,8 @@
 import { Router } from "express";
-import fs from "fs/promises";
 import crypto from "crypto";
 import path from "path";
 import multer from "multer";
+import * as fs from "../lib/fileSystem.js";
 import {
   consumeFlashSession,
   ensureCsrf,
@@ -128,7 +128,7 @@ export function createLaunchpadRouter() {
   router.get("/api/launchpad/icons", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
     try {
       await fs.mkdir(launchpadIconsDir, { recursive: true });
-      const files = await fs.readdir(launchpadIconsDir);
+      const files = await fs.readdir(launchpadIconsDir) as string[];
       const iconFiles = files
         .filter(file => /\.(png|jpg|jpeg|svg|gif|webp)$/i.test(file))
         .map(file => ({

@@ -1,5 +1,5 @@
 import path from "path";
-import fs from "fs/promises";
+import * as fs from "./fileSystem.js";
 
 const DEFAULT_DATA_DIR_NAME = "data";
 const DATA_SEED_DIR_NAME = "data-seed";
@@ -17,10 +17,6 @@ function getRuntimeMode(): RuntimeMode {
   }
 
   return "production";
-}
-
-function isDevMode(): boolean {
-  return getRuntimeMode() === "development";
 }
 
 function getDefaultDataDirName(): string {
@@ -58,7 +54,7 @@ export async function ensureDataSeeded(): Promise<void> {
     return;
   }
 
-  await fs.mkdir(targetDir, { recursive: true });
+  await fs.mkdir(targetDir, { recursive: true, bypassDemoMode: true });
   const targetEntries = await fs.readdir(targetDir);
   if (targetEntries.length == 0) {
 
@@ -73,9 +69,10 @@ export async function ensureDataSeeded(): Promise<void> {
     }
 
     for (const entry of sourceEntries) {
-      const sourcePath = path.join(sourceDir, entry.name);
-      const targetPath = path.join(targetDir, entry.name);
-      await fs.cp(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: false });
+      const entryName = typeof entry === 'string' ? entry : entry.name;
+      const sourcePath = path.join(sourceDir, entryName);
+      const targetPath = path.join(targetDir, entryName);
+      await fs.cp(sourcePath, targetPath, { recursive: true, force: false, errorOnExist: false, bypassDemoMode: true });
     }
 
     console.log(`Data seeded from ${sourceDir} to ${targetDir}`);
@@ -86,7 +83,7 @@ export async function ensureDataSeeded(): Promise<void> {
   const targetIconsDir = path.join(targetDir, "uploads", "launchpad-icons");
 
   try {
-      await fs.cp(sourceIconsDir, targetIconsDir, { recursive: true });
+      await fs.cp(sourceIconsDir, targetIconsDir, { recursive: true, bypassDemoMode: true });
       console.log(`Copied launchpad icons from ${sourceIconsDir} to ${targetIconsDir}`);
   } catch (err) {
     console.error(`Failed to copy launchpad icons: ${err}`);

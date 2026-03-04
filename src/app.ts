@@ -1,9 +1,9 @@
 import express from "express";
-import fs from "fs/promises";
 import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import cookieParser from "cookie-parser";
+import * as fs from "./lib/fileSystem.js";
 import {
   listRunningContainers,
   listContainerStats,
@@ -94,8 +94,8 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
   app.use(express.urlencoded({ extended: false }));
   app.use(cookieParser(cookieSecret));
 
-  void fs.mkdir(dashboardUploadsDir, { recursive: true });
-  void fs.mkdir(launchpadIconsDir, { recursive: true });
+  void fs.mkdir(dashboardUploadsDir, { recursive: true, bypassDemoMode: true });
+  void fs.mkdir(launchpadIconsDir, { recursive: true, bypassDemoMode: true });
 
   app.use(async (_req, res, next) => {
     try {

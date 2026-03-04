@@ -1,7 +1,7 @@
-import fs from "fs/promises";
 import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
-import { isDemoMode, logDemoAction } from "./demoMode.js";
+import { isDemoMode } from "./demoMode.js";
+import * as fs from "./fileSystem.js";
 
 const DEFAULT_DASHBOARD_SETTINGS_PATH = resolveDataPath("dashboardSettings.json");
 
@@ -32,7 +32,7 @@ export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
 };
 
 function getDashboardSettingsFilePath(): string {
-  return process.env.DASHBOARD_SETTINGS_FILE || DEFAULT_DASHBOARD_SETTINGS_PATH;
+  return DEFAULT_DASHBOARD_SETTINGS_PATH;
 }
 
 function validateDashboardSettings(input: unknown): DashboardSettings {
@@ -56,7 +56,7 @@ async function ensureDashboardSettingsFileExists(filePath = getDashboardSettings
   } catch {
     const defaultSettings = { ...DEFAULT_DASHBOARD_SETTINGS };
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, JSON.stringify(defaultSettings, null, 2), "utf-8");
+    await fs.writeFile(filePath, JSON.stringify(defaultSettings, null, 2));
   }
 }
 
@@ -64,18 +64,27 @@ async function readDashboardSettings(filePath = getDashboardSettingsFilePath()):
   await ensureDashboardSettingsFileExists(filePath);
   const text = await fs.readFile(filePath, "utf-8");
   const parsed = JSON.parse(text) as unknown;
-  return validateDashboardSettings(parsed);
+  const validated = validateDashboardSettings(parsed);
+  
+  // Migrate legacy settings by writing defaults for missing properties
+  const parsedObj = parsed as Partial<DashboardSettings>;
+  const needsMigration = 
+    typeof parsedObj?.hideAttributionFooter !== "boolean" ||
+    typeof parsedObj?.showContainerResources !== "boolean" ||
+    typeof parsedObj?.showServerResources !== "boolean" ||
+    typeof parsedObj?.showImageName !== "boolean" ||
+    typeof parsedObj?.showContainerHash !== "boolean";
+  
+  if (needsMigration && !isDemoMode()) {
+    await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
+  }
+  
+  return validated;
 }
 
 async function writeDashboardSettings(settings: DashboardSettings, filePath = getDashboardSettingsFilePath()): Promise<void> {
   const validated = validateDashboardSettings(settings);
-
-  if (isDemoMode()) {
-    logDemoAction("writeDashboardSettings", validated);
-    return;
-  }
-
-  await fs.writeFile(filePath, JSON.stringify(validated, null, 2), "utf-8");
+  await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
 }
 
 export async function getDashboardSettings(): Promise<DashboardSettings> {

@@ -1,9 +1,8 @@
-import fs from "fs/promises";
 import crypto from "crypto";
 import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
-import { isDemoMode, logDemoAction } from "./demoMode.js";
 import { validateOrThrow, createServerSchema, updateServerSchema, updateLocalServerSchema } from "./validation.js";
+import * as fs from "./fileSystem.js";
 
 const DEFAULT_REMOTE_SERVERS_PATH = resolveDataPath("remoteServers.json");
 const ENCRYPTED_PASSWORD_PREFIX = "enc:v1";
@@ -74,7 +73,7 @@ function decryptRemoteServerPassword(storedValue: string): string {
 }
 
 function getRemoteServersFilePath(): string {
-  return process.env.REMOTE_SERVERS_FILE || DEFAULT_REMOTE_SERVERS_PATH;
+  return DEFAULT_REMOTE_SERVERS_PATH;
 }
 
 function createDefaultLocalServer(): RemoteServer {
@@ -192,7 +191,7 @@ async function ensureRemoteServersFileExists(filePath = getRemoteServersFilePath
       servers: [createDefaultLocalServer()],
     };
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, JSON.stringify(defaultFile, null, 2), "utf-8");
+    await fs.writeFile(filePath, JSON.stringify(defaultFile, null, 2));
   }
 }
 
@@ -206,17 +205,8 @@ async function readRemoteServersFile(filePath = getRemoteServersFilePath()): Pro
 
 async function writeRemoteServersFile(data: RemoteServersFile, filePath = getRemoteServersFilePath()): Promise<void> {
   const validated = validateRemoteServersFile(data);
-  
-  if (isDemoMode()) {
-    logDemoAction("writeRemoteServersFile", { 
-      serverCount: validated.servers.length,
-      defaultServerId: validated.defaultServerId 
-    });
-    return;
-  }
-  
   const encrypted = encryptRemoteServerPasswords(validated);
-  await fs.writeFile(filePath, JSON.stringify(encrypted, null, 2), "utf-8");
+  await fs.writeFile(filePath, JSON.stringify(encrypted, null, 2));
 }
 
 export async function listRemoteServers(): Promise<{ defaultServerId: string; servers: RemoteServer[] }> {

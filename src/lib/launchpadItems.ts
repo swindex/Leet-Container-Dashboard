@@ -1,9 +1,8 @@
-import fs from "fs/promises";
 import crypto from "crypto";
 import path from "path";
 import { resolveDataPath } from "./dataPaths.js";
-import { isDemoMode, logDemoAction } from "./demoMode.js";
 import type { DockerContainer } from "./dockerCli.js";
+import * as fs from "./fileSystem.js";
 
 const DEFAULT_LAUNCHPAD_PATH = resolveDataPath("launchpad.json");
 
@@ -71,7 +70,7 @@ async function ensureLaunchpadFileExists(filePath = getLaunchpadFilePath()): Pro
       items: [],
     };
     await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(filePath, JSON.stringify(defaultFile, null, 2), "utf-8");
+    await fs.writeFile(filePath, JSON.stringify(defaultFile, null, 2));
   }
 }
 
@@ -84,16 +83,7 @@ async function readLaunchpadFile(filePath = getLaunchpadFilePath()): Promise<Lau
 
 async function writeLaunchpadFile(data: LaunchpadFile, filePath = getLaunchpadFilePath()): Promise<void> {
   const validated = validateLaunchpadFile(data);
-
-  if (isDemoMode()) {
-    logDemoAction("writeLaunchpadFile", {
-      itemCount: validated.items.length,
-      lastSyncTime: validated.lastSyncTime,
-    });
-    return;
-  }
-
-  await fs.writeFile(filePath, JSON.stringify(validated, null, 2), "utf-8");
+  await fs.writeFile(filePath, JSON.stringify(validated, null, 2));
 }
 
 export async function listLaunchpadItems(): Promise<LaunchpadItem[]> {

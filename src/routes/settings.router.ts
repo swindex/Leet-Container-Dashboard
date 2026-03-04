@@ -1,8 +1,8 @@
 import { Router } from "express";
-import fs from "fs/promises";
 import crypto from "crypto";
 import path from "path";
 import multer from "multer";
+import * as fs from "../lib/fileSystem.js";
 import {
   consumeFlashSession,
   ensureCsrf,

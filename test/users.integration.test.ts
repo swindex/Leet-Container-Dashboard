@@ -8,6 +8,7 @@ import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vites
 import { createApp } from "../src/app.js";
 import { ROLES, type Role } from "../src/lib/rbac.js";
 import { invalidateCache } from "../src/lib/dockerStatsCache.js";
+import { resolveDataPath } from "../src/lib/dataPaths.js";
 
 function extractCsrfToken(html: string): string {
   const match = html.match(/name="_csrf"\s+value="([^"]+)"/);
@@ -37,13 +38,8 @@ async function readUsersFromFile(usersFilePath: string): Promise<Array<{ id: str
 describe("user management page integration", () => {
   let usersFilePath = "";
   let remoteServersFilePath = "";
-  let dashboardSettingsFilePath = "";
-  let dashboardUploadsDir = "";
   let restoreUsersFileContent: string | null = null;
   let usersFileExisted = false;
-  let restoreRemoteServersFile: string | undefined;
-  let restoreDashboardSettingsFile: string | undefined;
-  let restoreDashboardUploadsDir: string | undefined;
   let restoreCookieSecret: string | undefined;
   let restoreNodeEnv: string | undefined;
 
@@ -53,13 +49,12 @@ describe("user management page integration", () => {
   const restartHostMock = vi.fn(async () => undefined);
 
   beforeAll(async () => {
-    restoreRemoteServersFile = process.env.REMOTE_SERVERS_FILE;
-    restoreDashboardSettingsFile = process.env.DASHBOARD_SETTINGS_FILE;
-    restoreDashboardUploadsDir = process.env.DASHBOARD_UPLOADS_DIR;
     restoreCookieSecret = process.env.COOKIE_SECRET;
     restoreNodeEnv = process.env.NODE_ENV;
 
-    usersFilePath = path.resolve(process.cwd(), "data", "test", "users.json");
+    usersFilePath = resolveDataPath("users.json");
+    remoteServersFilePath = resolveDataPath("remoteServers.json");
+
     await fs.mkdir(path.dirname(usersFilePath), { recursive: true });
     try {
       restoreUsersFileContent = await fs.readFile(usersFilePath, "utf-8");
@@ -91,11 +86,6 @@ describe("user management page integration", () => {
       },
     ];
 
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "home-server-tests-"));
-    remoteServersFilePath = path.join(tempDir, "remoteServers.json");
-    dashboardSettingsFilePath = path.join(tempDir, "dashboardSettings.json");
-    dashboardUploadsDir = path.join(tempDir, "uploads", "backgrounds");
-
     await fs.writeFile(
       usersFilePath,
       JSON.stringify({ users: testUsers }, null, 2),
@@ -125,9 +115,6 @@ describe("user management page integration", () => {
       "utf-8"
     );
 
-    process.env.REMOTE_SERVERS_FILE = remoteServersFilePath;
-    process.env.DASHBOARD_SETTINGS_FILE = dashboardSettingsFilePath;
-    process.env.DASHBOARD_UPLOADS_DIR = dashboardUploadsDir;
     process.env.COOKIE_SECRET = "integration-test-secret";
   });
 
@@ -140,24 +127,6 @@ describe("user management page integration", () => {
   });
 
   afterAll(async () => {
-    if (restoreRemoteServersFile === undefined) {
-      delete process.env.REMOTE_SERVERS_FILE;
-    } else {
-      process.env.REMOTE_SERVERS_FILE = restoreRemoteServersFile;
-    }
-
-    if (restoreDashboardSettingsFile === undefined) {
-      delete process.env.DASHBOARD_SETTINGS_FILE;
-    } else {
-      process.env.DASHBOARD_SETTINGS_FILE = restoreDashboardSettingsFile;
-    }
-
-    if (restoreDashboardUploadsDir === undefined) {
-      delete process.env.DASHBOARD_UPLOADS_DIR;
-    } else {
-      process.env.DASHBOARD_UPLOADS_DIR = restoreDashboardUploadsDir;
-    }
-
     if (usersFileExisted) {
       await fs.writeFile(usersFilePath, restoreUsersFileContent ?? "", "utf-8");
     } else {
@@ -174,10 +143,6 @@ describe("user management page integration", () => {
       delete process.env.NODE_ENV;
     } else {
       process.env.NODE_ENV = restoreNodeEnv;
-    }
-
-    if (dashboardSettingsFilePath) {
-      await fs.rm(path.dirname(dashboardSettingsFilePath), { recursive: true, force: true });
     }
   });
 

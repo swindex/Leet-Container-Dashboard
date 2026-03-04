@@ -1,16 +1,15 @@
-import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 import { hasPermission, type Permission, type Role, PERMISSIONS, ROLES } from "./rbac.js";
 import { resolveDataPath } from "./dataPaths.js";
-import { isDemoMode, logDemoAction } from "./demoMode.js";
 import { validateOrThrow, loginSchema, createUserSchema, updateUserSchema } from "./validation.js";
+import * as fs from "./fileSystem.js";
 
 const SESSION_COOKIE_NAME = "hs_session";
 const DEFAULT_USERS_PATH = resolveDataPath("users.json");
-const DEFAULT_TEST_USERS_PATH = path.resolve(process.cwd(), "data", "test", "users.json");
+const DEFAULT_TEST_USERS_PATH = path.resolve(process.cwd(), "data-test", "users.json");
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOGIN_WINDOW_MS = 10 * 60 * 1000;
 const LOCK_TIME_MS = 10 * 60 * 1000;
@@ -96,12 +95,7 @@ async function readUsersFile(usersFilePath = getUsersFilePath()): Promise<UsersF
 }
 
 async function writeUsersFile(data: UsersFile, usersFilePath = getUsersFilePath()): Promise<void> {
-  if (isDemoMode()) {
-    logDemoAction("writeUsersFile", { userCount: data.users.length });
-    return;
-  }
-  
-  await fs.writeFile(usersFilePath, JSON.stringify(data, null, 2), "utf-8");
+  await fs.writeFile(usersFilePath, JSON.stringify(data, null, 2));
 }
 
 export async function isBootstrapAdminMode(): Promise<boolean> {
