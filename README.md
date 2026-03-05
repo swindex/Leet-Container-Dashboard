@@ -2,34 +2,27 @@
 
 Leet Container Dashboard is a TypeScript + Bun web dashboard for managing Docker containers across local and remote servers.
 
-## Screenshot
-
-![Leet Container Dashboard Screenshot](./screenshot.png)
-
 ## Demo
-
 Try out the live demo at: **https://lcd.snapwebapps.com/**
-
 **Login credentials:**
 - **Admin:** Username: `test-admin`, Password: `testtest`
 - **Operator:** Username: `test-operator`, Password: `testtest`
 - **Viewer:** Username: `test`, Password: `testtest`
 
-## Features
-
+### Dashboard
 - Docker container monitoring and management (start, stop, restart, remove)
 - Bulk container actions
 - Local + remote server support with active/default server selection
-- User authentication with role-based access control (RBAC)
-- User administration (create, update, enable/disable, delete)
-- Dashboard customization (theme, title/slogan, background image)
 - Server and container resource metrics
-- Launcher page with beautiful service tiles for HTTP-exposed containers
+- Dashboard customization (theme, title/slogan, background image)
 
+
+![Leet Container Dashboard Screenshot](./screenshot.png)
 
 ### Launcher
 
-The launcher automatically discovers containers with exposed HTTP/HTTPS ports across all your configured servers. Container information is synced automatically every 30 seconds in the background, and services are stored in `data/launchpad.json`.
+The launcher automatically discovers containers with exposed HTTP/HTTPS ports across all your configured servers. Container information is synced automatically every 30 seconds in the background.
+<img width="962" height="620" alt="image" src="https://github.com/user-attachments/assets/29a58bd6-804b-42b5-956a-73e6db42e091" />
 
 **Auto-Discovery Features:**
 - Automatically detects containers with TCP ports
@@ -47,6 +40,10 @@ All launcher tiles can be customized through the dashboard UI (future feature) o
 
 Services are automatically discovered on startup and kept in sync with your running containers.
 
+## Other Features
+- User authentication with role-based access control (RBAC)
+- User administration (create, update, enable/disable, delete)
+
 ## Tech Stack
 
 - **Runtime:** Bun
@@ -60,8 +57,9 @@ Services are automatically discovered on startup and kept in sync with your runn
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) (If you want to develop)
-- Docker (for container data/actions)
+- Docker (for running the dockerized app)
+- [Bun](https://bun.sh/) (If you want to develop or run natively)
+
 
 ## Quick Start: Docker Hub (Recommended)
 
@@ -111,17 +109,16 @@ docker compose up -d
 
 Open `http://localhost:3000` after the container starts.
 
-## Build from Source: Run with Docker
+## Build from Source
 
 If you want to build the image locally instead of using Docker Hub:
 
-### Production-style run
-
+### Check out the source code
 ```bash
-docker compose up -d --build
+git clone https://github.com/swindex/Leet-Container-Dashboard
 ```
 
-### Development run (with `bun run dev`)
+### Build in Docker (with `bun run dev`)
 
 ```bash
 docker compose -f docker-compose.dev.yml up -d --build
@@ -145,15 +142,6 @@ bun install
 ### Configure environment
 
 Copy `.env.example` to `.env` and adjust values if needed.
-
-Key variables:
-
-- `PORT=3000`
-- `COOKIE_NAME=hsp_session`
-- `COOKIE_SECRET=change-me`
-- `REMOTE_SERVERS_KEY=`
-- `COOKIE_SECURE=false`
-
 
 Production note:
 
@@ -181,7 +169,7 @@ bun run test
 
 ## Credits
 
-Created in **6 hours** by **Eldar Gerfanov** with **99% of Codex 5.3 and Cline VSCode extension**.
+Created by **Eldar Gerfanov** with help of Codex 5.3, Sonnet 4.5 and Cline VSCode extension.
 
 ## License
 
