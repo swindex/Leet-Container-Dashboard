@@ -131,16 +131,20 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
 
   // Background launchpad sync for all servers
   async function syncAllServersLaunchpad() {
+    console.log("[Launchpad] Starting sync for all servers...");
     try {
       const { servers } = await listRemoteServers();
+      console.log(`[Launchpad] Found ${servers.length} servers to sync.`);
       
       for (const server of servers) {
         if (!server.enabled) {
+          console.log(`[Launchpad] Skipping disabled server: ${server.name || server.id}`);
           continue;
         }
         
         try {
           const containers = await deps.listContainers(server);
+          console.log(`[Launchpad] Syncing server ${server.name || server.id} with ${containers.length} containers...`);
           await syncLaunchpadItemsForServer(server, containers);
         } catch (error) {
           console.warn(`[Launchpad] Sync failed for ${server.name || server.id}:`, (error as Error).message);

@@ -79,6 +79,100 @@ function inferServiceLinksFromPorts(portsValue: string, serviceHost: string): Se
 }
 
 /**
+ * Merges duplicate launchpad items for a server, ensuring only one item per container name.
+ * Priority: running > stopped > removed, and user-customized over auto-discovered.
+ * Preserves user settings from any customized duplicates.
+ */
+function mergeDuplicateItems(items: LaunchpadItem[], serverId: string): { items: LaunchpadItem[], hasChanges: boolean } {
+  let hasChanges = false;
+  
+  // Group items by container name for this server
+  const itemsByName = new Map<string, LaunchpadItem[]>();
+  
+  for (const item of items) {
+    if (item.serverId !== serverId) {
+      continue;
+    }
+    
+    const existing = itemsByName.get(item.containerName);
+    if (existing) {
+      existing.push(item);
+    } else {
+      itemsByName.set(item.containerName, [item]);
+    }
+  }
+  
+  // Process each group of items with the same name
+  const itemsToKeep = new Set<string>(); // Track item IDs to keep
+  const itemsToDelete = new Set<string>(); // Track item IDs to delete
+  
+  for (const [containerName, duplicates] of itemsByName) {
+    if (duplicates.length === 1) {
+      // No duplicates, keep it
+      itemsToKeep.add(duplicates[0].id);
+      continue;
+    }
+    
+    // Multiple items with same name - select winner and merge settings
+    
+    // Sort by priority: running > stopped > removed, then user-customized > auto-discovered
+    const sorted = duplicates.sort((a, b) => {
+      // Status priority
+      const statusPriority = { running: 3, stopped: 2, removed: 1 };
+      const aPriority = statusPriority[a.status] || 0;
+      const bPriority = statusPriority[b.status] || 0;
+      
+      if (aPriority !== bPriority) {
+        return bPriority - aPriority; // Higher priority first
+      }
+      
+      // User-customized first
+      if (!a.autoDiscovered && b.autoDiscovered) return -1;
+      if (a.autoDiscovered && !b.autoDiscovered) return 1;
+      
+      // Most recent
+      return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+    });
+    
+    const winner = sorted[0];
+    const losers = sorted.slice(1);
+    
+    // Merge user settings from any user-customized losers
+    for (const loser of losers) {
+      if (!loser.autoDiscovered) {
+        // Transfer user settings to winner
+        winner.name = loser.name;
+        winner.description = loser.description;
+        winner.publicUrl = loser.publicUrl;
+        winner.iconImage = loser.iconImage;
+        winner.hidden = loser.hidden;
+        winner.autoDiscovered = false;
+        hasChanges = true;
+        console.log(`[Launchpad] Merged user settings from duplicate "${loser.name}" into "${winner.containerName}"`);
+      }
+    }
+    
+    // Mark winner to keep, losers to delete
+    itemsToKeep.add(winner.id);
+    for (const loser of losers) {
+      itemsToDelete.add(loser.id);
+      hasChanges = true;
+      console.log(`[Launchpad] Removed duplicate: "${loser.name}" (ID: ${loser.containerId})`);
+    }
+  }
+  
+  // Filter items: keep winners and all items from other servers
+  const resultItems = items.filter(item => {
+    if (item.serverId !== serverId) {
+      return true; // Keep items from other servers
+    }
+    return itemsToKeep.has(item.id); // Only keep winners from this server
+  });
+  
+  return { items: resultItems, hasChanges };
+}
+
+/**
  * Attempts to infer an icon image path based on container name/image matching icon filenames
  */
 async function inferIconImage(container: DockerContainer): Promise<string> {
@@ -154,52 +248,25 @@ export async function syncLaunchpadItemsForServer(
         continue;
       }
 
-      // CHECK: Find removed item(s) with matching container name on this server
-      const removedMatches = file.items.filter(item => 
-        item.serverId === server.id &&
-        item.containerName === container.Names &&
-        item.status === "removed"
-      );
-
-      if (removedMatches.length > 0) {
-        // SMART SELECTION: Prefer user-customized items, then most recent
-        const bestMatch = removedMatches.sort((a, b) => {
-          // User-customized items first (autoDiscovered === false means user edited it)
-          if (!a.autoDiscovered && b.autoDiscovered) return -1;
-          if (a.autoDiscovered && !b.autoDiscovered) return 1;
-          
-          // Then by most recent lastSeen timestamp
-          return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
-        })[0];
-
-        // RESURRECT: Update the removed item with new container ID
-        bestMatch.containerId = container.ID;
-        bestMatch.status = newStatus;
-        bestMatch.localUrl = localUrl;
-        bestMatch.lastSeen = now;
-        hasChanges = true;
-        console.log(`[Launchpad] Resurrected service: ${container.Names} (old ID removed, new ID: ${container.ID})`);
-      } else {
-        // No removed items found - create new item
-        const inferredIcon = await inferIconImage(container);
-        file.items.push({
-          id: crypto.randomUUID(),
-          serverId: server.id,
-          containerId: container.ID,
-          containerName: container.Names,
-          name: container.Names,
-          description: undefined,
-          publicUrl: "",
-          localUrl,
-          iconImage: inferredIcon,
-          hidden: false,
-          status: newStatus,
-          lastSeen: now,
-          autoDiscovered: true,
-        });
-        hasChanges = true;
-        console.log(`[Launchpad] Discovered new service: ${container.Names} on ${server.name || server.id}`);
-      }
+      // Create new item - duplicates will be merged later
+      const inferredIcon = await inferIconImage(container);
+      file.items.push({
+        id: crypto.randomUUID(),
+        serverId: server.id,
+        containerId: container.ID,
+        containerName: container.Names,
+        name: container.Names,
+        description: undefined,
+        publicUrl: "",
+        localUrl,
+        iconImage: inferredIcon,
+        hidden: false,
+        status: newStatus,
+        lastSeen: now,
+        autoDiscovered: true,
+      });
+      hasChanges = true;
+      console.log(`[Launchpad] Discovered new service: ${container.Names} on ${server.name || server.id}`);
     } else {
       // EXISTING CONTAINER: Update status and info regardless of port visibility
       let itemChanged = false;
@@ -237,6 +304,13 @@ export async function syncLaunchpadItemsForServer(
       hasChanges = true;
       console.log(`[Launchpad] Marked as removed: ${item.name} on ${server.name || server.id}`);
     }
+  }
+
+  // Merge duplicate items for this server (ensures only one item per container name)
+  const mergeResult = mergeDuplicateItems(file.items, server.id);
+  file.items = mergeResult.items;
+  if (mergeResult.hasChanges) {
+    hasChanges = true;
   }
 
   // Update last sync time
