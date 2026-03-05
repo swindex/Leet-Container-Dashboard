@@ -14,7 +14,7 @@ import {
 } from "../lib/auth.js";
 import { PERMISSIONS } from "../lib/rbac.js";
 import { listRemoteServers, resolveServerByIdOrDefault } from "../lib/remoteServers.js";
-import { listLaunchpadItems, updateLaunchpadItem, toggleLaunchpadItemVisibility, getLaunchpadItemById } from "../lib/launchpadItems.js";
+import { listLaunchpadItems, updateLaunchpadItem, toggleLaunchpadItemVisibility, getLaunchpadItemById, deleteLaunchpadItem, cleanupRemovedItems } from "../lib/launchpadItems.js";
 import { getLaunchpadIconsUploadsPath } from "../lib/dashboardSettings.js";
 
 function iconExtensionFromMimeType(mimeType: string): string | null {
@@ -217,6 +217,62 @@ export function createLaunchpadRouter() {
       } catch (error) {
         setFlashSession(res, req, { error: (error as Error).message || "Failed to toggle visibility" });
         res.redirect("/launchpad");
+      }
+    }
+  );
+
+  router.post(
+    "/launchpad/:id/delete",
+    requireAuth,
+    requirePermission(PERMISSIONS.CONTAINERS_VIEW),
+    ensureCsrf,
+    async (req, res) => {
+      try {
+        const itemId = req.params.id;
+        await deleteLaunchpadItem(itemId);
+        
+        setFlashSession(res, req, { notice: "Launchpad item deleted successfully" });
+        res.redirect("/launchpad");
+      } catch (error) {
+        setFlashSession(res, req, { error: (error as Error).message || "Failed to delete item" });
+        res.redirect("/launchpad");
+      }
+    }
+  );
+
+  router.post(
+    "/api/launchpad/sync",
+    requireAuth,
+    requirePermission(PERMISSIONS.CONTAINERS_VIEW),
+    ensureCsrf,
+    async (req, res) => {
+      try {
+        const result = await cleanupRemovedItems();
+        
+        let message = "Cleanup complete";
+        if (result.deleted > 0 || result.hidden > 0) {
+          const parts: string[] = [];
+          if (result.deleted > 0) {
+            parts.push(`${result.deleted} deleted`);
+          }
+          if (result.hidden > 0) {
+            parts.push(`${result.hidden} hidden`);
+          }
+          message = `Cleaned up ${parts.join(", ")}`;
+        } else {
+          message = "No removed items to clean up";
+        }
+        
+        res.json({
+          success: true,
+          message,
+          data: result,
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          error: (error as Error).message || "Failed to cleanup removed items",
+        });
       }
     }
   );

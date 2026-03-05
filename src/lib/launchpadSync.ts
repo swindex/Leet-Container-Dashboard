@@ -154,24 +154,52 @@ export async function syncLaunchpadItemsForServer(
         continue;
       }
 
-      const inferredIcon = await inferIconImage(container);
-      file.items.push({
-        id: crypto.randomUUID(),
-        serverId: server.id,
-        containerId: container.ID,
-        containerName: container.Names,
-        name: container.Names,
-        description: undefined,
-        publicUrl: "",
-        localUrl,
-        iconImage: inferredIcon,
-        hidden: false,
-        status: newStatus,
-        lastSeen: now,
-        autoDiscovered: true,
-      });
-      hasChanges = true;
-      console.log(`[Launchpad] Discovered new service: ${container.Names} on ${server.name || server.id}`);
+      // CHECK: Find removed item(s) with matching container name on this server
+      const removedMatches = file.items.filter(item => 
+        item.serverId === server.id &&
+        item.containerName === container.Names &&
+        item.status === "removed"
+      );
+
+      if (removedMatches.length > 0) {
+        // SMART SELECTION: Prefer user-customized items, then most recent
+        const bestMatch = removedMatches.sort((a, b) => {
+          // User-customized items first (autoDiscovered === false means user edited it)
+          if (!a.autoDiscovered && b.autoDiscovered) return -1;
+          if (a.autoDiscovered && !b.autoDiscovered) return 1;
+          
+          // Then by most recent lastSeen timestamp
+          return new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime();
+        })[0];
+
+        // RESURRECT: Update the removed item with new container ID
+        bestMatch.containerId = container.ID;
+        bestMatch.status = newStatus;
+        bestMatch.localUrl = localUrl;
+        bestMatch.lastSeen = now;
+        hasChanges = true;
+        console.log(`[Launchpad] Resurrected service: ${container.Names} (old ID removed, new ID: ${container.ID})`);
+      } else {
+        // No removed items found - create new item
+        const inferredIcon = await inferIconImage(container);
+        file.items.push({
+          id: crypto.randomUUID(),
+          serverId: server.id,
+          containerId: container.ID,
+          containerName: container.Names,
+          name: container.Names,
+          description: undefined,
+          publicUrl: "",
+          localUrl,
+          iconImage: inferredIcon,
+          hidden: false,
+          status: newStatus,
+          lastSeen: now,
+          autoDiscovered: true,
+        });
+        hasChanges = true;
+        console.log(`[Launchpad] Discovered new service: ${container.Names} on ${server.name || server.id}`);
+      }
     } else {
       // EXISTING CONTAINER: Update status and info regardless of port visibility
       let itemChanged = false;

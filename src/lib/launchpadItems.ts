@@ -161,6 +161,9 @@ export async function updateLaunchpadItem(
     target.hidden = input.hidden;
   }
 
+  // Mark item as user-customized when edited
+  target.autoDiscovered = false;
+
   await writeLaunchpadFile(file);
 }
 
@@ -223,6 +226,38 @@ export async function shouldSyncImmediately(): Promise<boolean> {
     // File doesn't exist or error reading - sync immediately
     return true;
   }
+}
+
+export async function cleanupRemovedItems(): Promise<{ deleted: number; hidden: number }> {
+  const file = await readLaunchpadFile();
+  let deletedCount = 0;
+  let hiddenCount = 0;
+
+  const itemsToKeep: LaunchpadItem[] = [];
+
+  for (const item of file.items) {
+    if (item.status === "removed") {
+      if (item.autoDiscovered) {
+        // Auto-discovered items with removed containers: DELETE
+        deletedCount++;
+        console.log(`[Launchpad] Deleted auto-discovered removed item: ${item.name}`);
+      } else {
+        // User-customized items with removed containers: HIDE
+        item.hidden = true;
+        itemsToKeep.push(item);
+        hiddenCount++;
+        console.log(`[Launchpad] Hidden user-customized removed item: ${item.name}`);
+      }
+    } else {
+      // Keep all non-removed items
+      itemsToKeep.push(item);
+    }
+  }
+
+  file.items = itemsToKeep;
+  await writeLaunchpadFile(file);
+
+  return { deleted: deletedCount, hidden: hiddenCount };
 }
 
 export { readLaunchpadFile, writeLaunchpadFile };

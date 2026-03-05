@@ -41,6 +41,10 @@
         <div class="alert alert-danger hs-flash-alert"><i class="fa-solid fa-triangle-exclamation me-2"></i><%= error %></div>
       <% } %>
 
+      <div v-if="syncMessage" class="alert hs-flash-alert" :class="syncError ? 'alert-danger' : 'alert-success'">
+        <i class="fa-solid me-2" :class="syncError ? 'fa-triangle-exclamation' : 'fa-circle-check'"></i>{{ syncMessage }}
+      </div>
+
       <div v-if="loading" class="text-center py-5">
         <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
       </div>
@@ -80,6 +84,12 @@
                   </button>
                 </form>
               </li>
+              <li><hr class="dropdown-divider"></li>
+              <li>
+                <button class="dropdown-item text-danger" type="button" @click="deleteItem(tile.id, tile.name)">
+                  <i class="fa-solid fa-trash me-2"></i>Delete
+                </button>
+              </li>
             </ul>
           </div>
         </div>
@@ -98,6 +108,18 @@
           </div>
         </div>
       </div>
+
+      <!-- <div class="panel mt-3">
+        <button 
+          type="button" 
+          class="btn btn-hs-secondary w-100" 
+          @click="syncLaunchpad"
+          :disabled="syncInProgress"
+        >
+          <i class="fa-solid" :class="syncInProgress ? 'fa-spinner fa-spin' : 'fa-broom'"></i>
+          <span class="ms-2">{{ syncInProgress ? 'Cleaning up...' : 'Clean Up Removed Items' }}</span>
+        </button>
+      </div> -->
     </div>
   </div>
 
@@ -186,6 +208,9 @@
           availableIcons: [],
           editModal: null,
           editingTile: null,
+          syncInProgress: false,
+          syncMessage: '',
+          syncError: false,
         };
       },
       computed: {
@@ -284,6 +309,78 @@
             }
           } catch (error) {
             console.error('Failed to toggle visibility', error);
+          }
+        },
+        async syncLaunchpad() {
+          if (this.syncInProgress) return;
+          
+          this.syncInProgress = true;
+          this.syncMessage = '';
+          this.syncError = false;
+          
+          try {
+            const response = await fetch('/api/launchpad/sync', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: `_csrf=${encodeURIComponent('<%= csrfToken %>')}`,
+              credentials: 'same-origin',
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              this.syncMessage = result.message || 'Cleanup complete';
+              this.syncError = false;
+              
+              // Reload tiles after cleanup
+              const tilesResponse = await fetch('/api/launchpad', { credentials: 'same-origin' });
+              if (tilesResponse.ok) {
+                const tilesResult = await tilesResponse.json();
+                if (tilesResult.success && tilesResult.data) {
+                  this.launchpadTiles = tilesResult.data.launchpadTiles || [];
+                }
+              }
+            } else {
+              this.syncMessage = result.error || 'Failed to cleanup';
+              this.syncError = true;
+            }
+            
+            // Clear message after 5 seconds
+            setTimeout(() => {
+              this.syncMessage = '';
+              this.syncError = false;
+            }, 5000);
+          } catch (error) {
+            console.error('Failed to sync launchpad', error);
+            this.syncMessage = 'Failed to cleanup removed items';
+            this.syncError = true;
+          } finally {
+            this.syncInProgress = false;
+          }
+        },
+        async deleteItem(tileId, tileName) {
+          if (!confirm(`Are you sure you want to delete "${tileName}"?`)) {
+            return;
+          }
+          
+          try {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = `/launchpad/${tileId}/delete`;
+            
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = '_csrf';
+            csrfInput.value = '<%= csrfToken %>';
+            form.appendChild(csrfInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+          } catch (error) {
+            console.error('Failed to delete item', error);
+            alert('Failed to delete item');
           }
         },
       },
