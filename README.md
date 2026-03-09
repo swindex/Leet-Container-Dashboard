@@ -19,10 +19,10 @@ Try out the live demo at: **https://lcd.snapwebapps.com/**
 
 ![Leet Container Dashboard Screenshot](./screenshot.png)
 
-### Launcher
+### Launchpad
 
-The launcher automatically discovers containers with exposed HTTP/HTTPS ports across all your configured servers. Container information is synced automatically every 30 seconds in the background.
-<img width="962" height="620" alt="image" src="https://github.com/user-attachments/assets/29a58bd6-804b-42b5-956a-73e6db42e091" />
+The launchpad automatically discovers containers with exposed HTTP/HTTPS ports across all your configured servers. Container information is synced automatically every 30 seconds in the background.
+<img width="962" height="620" alt="558949013-29a58bd6-804b-42b5-956a-73e6db42e091" src="https://github.com/user-attachments/assets/45ec1c8f-131d-4d86-ba58-3d59198179e1" />
 
 **Auto-Discovery Features:**
 - Automatically detects containers with TCP ports
