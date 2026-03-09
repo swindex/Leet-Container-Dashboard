@@ -6,6 +6,7 @@ import * as fs from "./fileSystem.js";
 const DEFAULT_DASHBOARD_SETTINGS_PATH = resolveDataPath("dashboardSettings.json");
 
 export type DashboardTheme = "dark" | "light";
+export type DefaultViewPage = "dashboard" | "launchpad";
 
 export type DashboardSettings = {
   appTitle: string;
@@ -17,6 +18,8 @@ export type DashboardSettings = {
   showServerResources: boolean;
   showImageName: boolean;
   showContainerHash: boolean;
+  dashboardRefreshInterval: number;
+  defaultViewPage: DefaultViewPage;
 };
 
 export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
@@ -29,6 +32,8 @@ export const DEFAULT_DASHBOARD_SETTINGS: DashboardSettings = {
   showServerResources: true,
   showImageName: true,
   showContainerHash: true,
+  dashboardRefreshInterval: 5000,
+  defaultViewPage: "dashboard",
 };
 
 function getDashboardSettingsFilePath(): string {
@@ -37,6 +42,19 @@ function getDashboardSettingsFilePath(): string {
 
 function validateDashboardSettings(input: unknown): DashboardSettings {
   const parsed = input as Partial<DashboardSettings>;
+  
+  // Validate and clamp dashboard refresh interval (3-60 seconds)
+  let refreshInterval = DEFAULT_DASHBOARD_SETTINGS.dashboardRefreshInterval;
+  if (typeof parsed?.dashboardRefreshInterval === "number") {
+    refreshInterval = Math.max(3000, Math.min(60000, parsed.dashboardRefreshInterval));
+  }
+  
+  // Validate defaultViewPage
+  let defaultViewPage: DefaultViewPage = DEFAULT_DASHBOARD_SETTINGS.defaultViewPage;
+  if (parsed?.defaultViewPage === "launchpad" || parsed?.defaultViewPage === "dashboard") {
+    defaultViewPage = parsed.defaultViewPage;
+  }
+  
   return {
     appTitle: typeof parsed?.appTitle === "string" ? parsed.appTitle : DEFAULT_DASHBOARD_SETTINGS.appTitle,
     appSlogan: typeof parsed?.appSlogan === "string" ? parsed.appSlogan : DEFAULT_DASHBOARD_SETTINGS.appSlogan,
@@ -47,6 +65,8 @@ function validateDashboardSettings(input: unknown): DashboardSettings {
     showServerResources: typeof parsed?.showServerResources === "boolean" ? parsed.showServerResources : DEFAULT_DASHBOARD_SETTINGS.showServerResources,
     showImageName: typeof parsed?.showImageName === "boolean" ? parsed.showImageName : DEFAULT_DASHBOARD_SETTINGS.showImageName,
     showContainerHash: typeof parsed?.showContainerHash === "boolean" ? parsed.showContainerHash : DEFAULT_DASHBOARD_SETTINGS.showContainerHash,
+    dashboardRefreshInterval: refreshInterval,
+    defaultViewPage: defaultViewPage,
   };
 }
 
@@ -73,7 +93,9 @@ async function readDashboardSettings(filePath = getDashboardSettingsFilePath()):
     typeof parsedObj?.showContainerResources !== "boolean" ||
     typeof parsedObj?.showServerResources !== "boolean" ||
     typeof parsedObj?.showImageName !== "boolean" ||
-    typeof parsedObj?.showContainerHash !== "boolean";
+    typeof parsedObj?.showContainerHash !== "boolean" ||
+    typeof parsedObj?.dashboardRefreshInterval !== "number" ||
+    (parsedObj?.defaultViewPage !== "dashboard" && parsedObj?.defaultViewPage !== "launchpad");
   
   if (needsMigration && !isDemoMode()) {
     await fs.writeFile(filePath, JSON.stringify(validated, null, 2));

@@ -1,7 +1,8 @@
 {
-  "name": "home-server-panel",
-  "version": "1.0.8",
+  "name": "leet-container-dashboard",
+  "version": "1.0.9",
   "private": true,
+  "author": {"name": "Eldar Gerfanov"},
   "main": "src/index.ts",
   "type": "module",
   "scripts": {

@@ -87,9 +87,37 @@
         </div>
 
         <div class="mb-3">
+          <label for="defaultViewPage" class="form-label">Default View Page</label>
+          <select id="defaultViewPage" name="defaultViewPage" class="form-select hs-input" required>
+            <option value="dashboard" <%= settings.defaultViewPage === 'dashboard' ? 'selected' : '' %>>Dashboard</option>
+            <option value="launchpad" <%= settings.defaultViewPage === 'launchpad' ? 'selected' : '' %>>Launchpad</option>
+          </select>
+          <small class="form-text text-muted">
+            Choose which page to show by default after login
+          </small>
+        </div>
+
+        <div class="mb-3">
+          <label for="dashboardRefreshInterval" class="form-label">Dashboard Refresh Interval</label>
+          <input
+            id="dashboardRefreshInterval"
+            name="dashboardRefreshInterval"
+            type="number"
+            class="form-control hs-input"
+            min="3000"
+            max="60000"
+            step="1000"
+            value="<%= settings.dashboardRefreshInterval %>"
+            required
+          />
+          <small class="form-text text-muted">
+            Time in milliseconds between dashboard updates. Valid range: 3000-60000 ms (3-60 seconds). Current: <%= Math.floor(settings.dashboardRefreshInterval / 1000) %>s
+          </small>
+        </div>
+
+        <div class="mb-3">
           <label class="form-label d-block">Resource Visibility</label>
           <div class="form-check mb-2">
-            <input type="hidden" name="showContainerResources" value="0" />
             <input
               id="showContainerResources"
               name="showContainerResources"
@@ -101,7 +129,6 @@
             <label for="showContainerResources" class="form-check-label">Show Container Resources</label>
           </div>
           <div class="form-check">
-            <input type="hidden" name="showServerResources" value="0" />
             <input
               id="showServerResources"
               name="showServerResources"
@@ -116,7 +143,6 @@
           <hr class="my-3" />
 
           <div class="form-check mb-2">
-            <input type="hidden" name="showImageName" value="0" />
             <input
               id="showImageName"
               name="showImageName"
@@ -129,7 +155,6 @@
           </div>
 
           <div class="form-check">
-            <input type="hidden" name="showContainerHash" value="0" />
             <input
               id="showContainerHash"
               name="showContainerHash"
@@ -144,7 +169,6 @@
           <hr class="my-3" />
 
           <div class="form-check">
-            <input type="hidden" name="hideAttributionFooter" value="0" />
             <input
               id="hideAttributionFooter"
               name="hideAttributionFooter"

@@ -14,7 +14,7 @@ import type { DockerContainer, DockerContainerStat, DockerHostInfo, DockerTarget
 import { PERMISSIONS } from "../lib/rbac.js";
 import { resolveServerByIdOrDefault, listRemoteServers } from "../lib/remoteServers.js";
 import { getCachedDockerData } from "../lib/dockerStatsCache.js";
-import { setPendingAction, getPendingActionsForServer } from "../lib/pendingActions.js";
+import { setPendingAction, getPendingActionsForServer, clearCompletedPendingActions } from "../lib/pendingActions.js";
 import {
   buildContainerStatsLookup,
   buildServerMetrics,
@@ -117,9 +117,9 @@ async function fetchDashboardData(req: Request, res: Response, deps: AppDeps) {
 
   const metricsWarning = "";
   const statsLookup = buildContainerStatsLookup(containerStats);
-  const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer), statsLookup);
+  const groupedContainers = groupContainersByComposeFile(containers, getServiceHost(activeServer, req.get('host')), statsLookup);
   const serverMetrics = buildServerMetrics(hostInfo, containerStats, metricsWarning);
-  const launcherTiles = buildLaunchpadTiles(containers, getServiceHost(activeServer));
+  const launcherTiles = buildLaunchpadTiles(containers, getServiceHost(activeServer, req.get('host')));
 
   return {
     servers,
@@ -139,7 +139,24 @@ async function fetchDashboardData(req: Request, res: Response, deps: AppDeps) {
 export function createDashboardRouter(deps: AppDeps) {
   const router = Router();
 
+  // Root route - redirects to default view based on settings
   router.get("/", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
+    try {
+      const defaultViewPage = res.locals.dashboardSettings.defaultViewPage || "dashboard";
+      
+      if (defaultViewPage === "launchpad") {
+        res.redirect("/launchpad");
+      } else {
+        res.redirect("/dashboard");
+      }
+    } catch (e) {
+      // If there's an error reading settings, default to dashboard
+      res.redirect("/dashboard");
+    }
+  });
+
+  // Explicit dashboard route
+  router.get("/dashboard", requireAuth, requirePermission(PERMISSIONS.CONTAINERS_VIEW), async (req, res) => {
     try {
       // For initial page load, just send empty data - Vue will fetch it
       const { servers, defaultServerId } = await listRemoteServers();
@@ -158,6 +175,7 @@ export function createDashboardRouter(deps: AppDeps) {
         servers,
         activeServerId: activeServer.id,
         defaultServerId,
+        dashboardRefreshInterval: res.locals.dashboardSettings.dashboardRefreshInterval,
       });
     } catch (e) {
       const error = e as Error;
@@ -170,6 +188,7 @@ export function createDashboardRouter(deps: AppDeps) {
         servers: [],
         activeServerId: "",
         defaultServerId: "local",
+        dashboardRefreshInterval: res.locals.dashboardSettings.dashboardRefreshInterval,
       });
     }
   });
@@ -179,6 +198,9 @@ export function createDashboardRouter(deps: AppDeps) {
     try {
       const dashboardData = await fetchDashboardData(req, res, deps);
       const can = getPermissionFlags(req.user);
+
+      // Clear completed pending actions based on actual container states
+      clearCompletedPendingActions(dashboardData.activeServer.id, dashboardData.containers);
 
       // Get pending actions for the active server
       const pendingActionsMap = getPendingActionsForServer(dashboardData.activeServer.id);
@@ -251,7 +273,6 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        setFlashSession(res, req, { notice: "Container removed successfully" });
         res.redirect("/");
       } catch (error) {
         console.warn("AUDIT container_remove", {
@@ -297,7 +318,6 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        setFlashSession(res, req, { notice: "Container started successfully" });
         res.redirect("/");
       } catch (error) {
         console.warn("AUDIT container_start", {
@@ -343,7 +363,6 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        setFlashSession(res, req, { notice: "Container stopped successfully" });
         res.redirect("/");
       } catch (error) {
         console.warn("AUDIT container_stop", {
@@ -389,7 +408,6 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        setFlashSession(res, req, { notice: "Container restarted successfully" });
         res.redirect("/");
       } catch (error) {
         console.warn("AUDIT container_restart", {
@@ -464,7 +482,6 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!running.length && !failed.length) {
-          setFlashSession(res, req, { notice: `${removed.length} container(s) removed successfully` });
           res.redirect("/");
           return;
         }
@@ -490,7 +507,7 @@ export function createDashboardRouter(deps: AppDeps) {
           ? `Failed: ${failed.join(", ")}`
           : "";
         setFlashSession(res, req, {
-          error: `Removed ${removed.length} container(s). ${[runningMessage, failedMessage].filter(Boolean).join(". ")}`,
+          error: [runningMessage, failedMessage].filter(Boolean).join(". ") || "Some containers could not be removed",
         });
         res.redirect("/");
       } catch (error) {
@@ -555,7 +572,6 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!failed.length) {
-          setFlashSession(res, req, { notice: `${started.length} container(s) started successfully` });
           res.redirect("/");
           return;
         }
@@ -567,7 +583,7 @@ export function createDashboardRouter(deps: AppDeps) {
         }
 
         setFlashSession(res, req, {
-          error: `Started ${started.length} container(s), failed ${failed.length}: ${failed.join(", ")}`,
+          error: `Failed to start: ${failed.join(", ")}`,
         });
         res.redirect("/");
       } catch (error) {
@@ -632,7 +648,6 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!failed.length) {
-          setFlashSession(res, req, { notice: `${stopped.length} container(s) stopped successfully` });
           res.redirect("/");
           return;
         }
@@ -644,7 +659,7 @@ export function createDashboardRouter(deps: AppDeps) {
         }
 
         setFlashSession(res, req, {
-          error: `Stopped ${stopped.length} container(s), failed ${failed.length}: ${failed.join(", ")}`,
+          error: `Failed to stop: ${failed.join(", ")}`,
         });
         res.redirect("/");
       } catch (error) {
@@ -709,7 +724,6 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!failed.length) {
-          setFlashSession(res, req, { notice: `${restarted.length} container(s) restarted successfully` });
           res.redirect("/");
           return;
         }
@@ -721,7 +735,7 @@ export function createDashboardRouter(deps: AppDeps) {
         }
 
         setFlashSession(res, req, {
-          error: `Restarted ${restarted.length} container(s), failed ${failed.length}: ${failed.join(", ")}`,
+          error: `Failed to restart: ${failed.join(", ")}`,
         });
         res.redirect("/");
       } catch (error) {
@@ -759,7 +773,6 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        setFlashSession(res, req, { notice: "Host restart command issued" });
         res.redirect("/");
       } catch (error) {
         console.warn("AUDIT host_restart", {

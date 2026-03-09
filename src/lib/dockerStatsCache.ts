@@ -4,8 +4,13 @@ import type {
   DockerHostInfo,
   DockerTargetServer,
 } from "./dockerCli.js";
+import { getDashboardSettings } from "./dashboardSettings.js";
 
-const CACHE_TTL_MS = 10_000; // 10 seconds
+// Cache TTL matches the dashboard refresh interval
+async function getCacheTTL(): Promise<number> {
+  const settings = await getDashboardSettings();
+  return settings.dashboardRefreshInterval;
+}
 
 type DockerDataSnapshot = {
   containers: DockerContainer[];
@@ -31,9 +36,10 @@ function getServerCacheKey(server: DockerTargetServer): string {
   return `${server.host}::${server.username}`;
 }
 
-function isCacheValid(snapshot: DockerDataSnapshot): boolean {
+async function isCacheValid(snapshot: DockerDataSnapshot): Promise<boolean> {
   const age = Date.now() - snapshot.timestamp;
-  return age < CACHE_TTL_MS;
+  const ttl = await getCacheTTL();
+  return age < ttl;
 }
 
 async function refreshCacheInBackground(
@@ -98,7 +104,7 @@ export async function getCachedDockerData(
   }
 
   // Cache hit and still valid - return immediately
-  if (isCacheValid(cached)) {
+  if (await isCacheValid(cached)) {
     return {
       containers: cached.containers,
       stats: cached.stats,

@@ -16,16 +16,11 @@ import {
   getDashboardBackgroundUploadsPath,
   updateDashboardSettings,
   type DashboardSettings,
-  type DashboardTheme,
 } from "../lib/dashboardSettings.js";
 import {
   backgroundExtensionFromMimeType,
-  toBooleanFormValue,
 } from "../lib/routerHelpers.js";
-
-function resolveDashboardTheme(value: unknown): DashboardTheme {
-  return value === "light" ? "light" : "dark";
-}
+import { updateSettingsSchema, validateOrThrow } from "../lib/validation.js";
 
 export function createSettingsRouter() {
   const router = Router();
@@ -64,17 +59,23 @@ export function createSettingsRouter() {
     ensureCsrf,
     async (req, res) => {
       try {
+        // Validate settings using Joi schema
+        const validatedData = validateOrThrow<DashboardSettings>(updateSettingsSchema, req.body);
+
         const patch: Partial<DashboardSettings> = {
-          appTitle: typeof req.body?.appTitle === "string" ? req.body.appTitle : "",
-          appSlogan: typeof req.body?.appSlogan === "string" ? req.body.appSlogan : "",
-          theme: resolveDashboardTheme(req.body?.theme),
-          hideAttributionFooter: toBooleanFormValue(req.body?.hideAttributionFooter, false),
-          showContainerResources: toBooleanFormValue(req.body?.showContainerResources, true),
-          showServerResources: toBooleanFormValue(req.body?.showServerResources, true),
-          showImageName: toBooleanFormValue(req.body?.showImageName, true),
-          showContainerHash: toBooleanFormValue(req.body?.showContainerHash, true),
+          appTitle: validatedData.appTitle,
+          appSlogan: validatedData.appSlogan,
+          theme: validatedData.theme,
+          hideAttributionFooter: validatedData.hideAttributionFooter,
+          showContainerResources: validatedData.showContainerResources,
+          showServerResources: validatedData.showServerResources,
+          showImageName: validatedData.showImageName,
+          showContainerHash: validatedData.showContainerHash,
+          dashboardRefreshInterval: validatedData.dashboardRefreshInterval,
+          defaultViewPage: validatedData.defaultViewPage,
         };
 
+        // Handle file upload separately
         if (req.file) {
           const extension = backgroundExtensionFromMimeType(req.file.mimetype);
           if (!extension) {

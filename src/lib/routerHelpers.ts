@@ -399,8 +399,13 @@ function resolveComposeGroup(container: DockerContainer): ResolvedComposeGroup {
   };
 }
 
-export function getServiceHost(server: DockerTargetServer): string {
+export function getServiceHost(server: DockerTargetServer, requestHost?: string): string {
   if (server.isLocal) {
+    // Use the request host if provided, otherwise fall back to localhost
+    if (requestHost) {
+      // Strip port from host (e.g., "192.168.1.100:3000" -> "192.168.1.100")
+      return requestHost.split(':')[0];
+    }
     return "localhost";
   }
 

@@ -238,10 +238,31 @@ export const themeSchema = Joi.string()
     "any.only": "Theme must be either 'light' or 'dark'",
   });
 
-export const booleanSettingSchema = Joi.boolean()
-  .default(true)
+export const booleanSettingSchema = Joi.optional()
+  .valid("on", "off")
+  .default("off")
+  .custom((value) => {
+    // Convert "on" to true, undefined/anything else to false
+    return value === "on";
+  });
+
+export const dashboardRefreshIntervalSchema = Joi.number()
+  .integer()
+  .min(3000)
+  .max(60000)
+  .default(5000)
   .messages({
-    "boolean.base": "Value must be a boolean",
+    "number.base": "Dashboard refresh interval must be a number",
+    "number.integer": "Dashboard refresh interval must be an integer",
+    "number.min": "Dashboard refresh interval must be at least {#limit}ms (3 seconds)",
+    "number.max": "Dashboard refresh interval must be at most {#limit}ms (60 seconds)",
+  });
+
+export const defaultViewPageSchema = Joi.string()
+  .valid("dashboard", "launchpad")
+  .default("dashboard")
+  .messages({
+    "any.only": "Default view page must be either 'dashboard' or 'launchpad'",
   });
 
 export const updateSettingsSchema = Joi.object({
@@ -253,6 +274,8 @@ export const updateSettingsSchema = Joi.object({
   showServerResources: booleanSettingSchema,
   showImageName: booleanSettingSchema,
   showContainerHash: booleanSettingSchema,
+  dashboardRefreshInterval: dashboardRefreshIntervalSchema,
+  defaultViewPage: defaultViewPageSchema,
 });
 
 // ============================================================================

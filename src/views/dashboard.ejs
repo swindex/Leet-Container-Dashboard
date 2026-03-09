@@ -101,7 +101,7 @@
       <div v-if="!showError && <%= dashboardSettings.showServerResources !== false %>" class="panel mb-3">
         <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
           <h2 class="h5 mb-0"><i class="fa-solid fa-microchip me-2"></i>Resource Consumption</h2>
-          <small class="text-muted">Auto-updates every 10s</small>
+          <small class="text-muted">Auto-updates every {{ refreshIntervalSeconds }}s</small>
         </div>
         <div class="row g-2 small">
           <div class="col-6 col-md-3">
@@ -149,7 +149,7 @@
               <p class="text-muted mb-3">{{ errorMessage }}</p>
               <p class="small text-muted">
                 <i class="fa-solid fa-rotate me-1"></i>
-                Auto-refreshing every 10 seconds. The dashboard will update automatically when the server becomes available.
+                Auto-refreshing every {{ refreshIntervalSeconds }} seconds. The dashboard will update automatically when the server becomes available.
               </p>
               <p v-if="servers.length > 1" class="small text-muted mt-3">
                 <i class="fa-solid fa-lightbulb me-1"></i>
@@ -398,11 +398,15 @@
           unavailableServerIds: [],
           pendingActions: {},
           refreshInterval: null,
+          refreshIntervalMs: <%= dashboardRefreshInterval %>,
           selectedContainers: new Set(),
           selectAll: false
         };
       },
       computed: {
+        refreshIntervalSeconds() {
+          return Math.floor(this.refreshIntervalMs / 1000);
+        },
         canRemove() {
           // Can only remove stopped containers
           return Array.from(this.selectedContainers).every(name => {
@@ -509,8 +513,8 @@
           if (this.refreshInterval) return;
           this.refreshInterval = setInterval(() => {
             this.fetchDashboardData();
-          }, 10000);
-          console.log('Auto-refresh started (10s interval)');
+          }, this.refreshIntervalMs);
+          console.log(`Auto-refresh started (${this.refreshIntervalSeconds}s interval)`);
         },
         
         stopAutoRefresh() {

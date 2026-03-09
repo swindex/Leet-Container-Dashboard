@@ -7,5 +7,7 @@
   "showContainerResources": true,
   "showServerResources": true,
   "showImageName": true,
-  "showContainerHash": true
+  "showContainerHash": true,
+  "dashboardRefreshInterval": 5000,
+  "defaultViewPage": "dashboard"
 }

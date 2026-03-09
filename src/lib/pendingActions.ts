@@ -121,6 +121,62 @@ export function clearAllPendingActions(): void {
 }
 
 /**
+ * Clears pending actions that have been completed based on actual container states
+ * Should be called after fetching fresh container data
+ */
+export function clearCompletedPendingActions(
+  serverId: string,
+  containers: Array<{ ID: string; State: string; Status: string }>
+): void {
+  const containerIds = new Set(containers.map((c) => c.ID));
+
+  // Check all pending actions for this server
+  for (const [key, pending] of pendingActions.entries()) {
+    if (pending.serverId !== serverId) {
+      continue;
+    }
+
+    // Extract container ID from key
+    const containerId = key.split("::").slice(1).join("::");
+
+    // Check if this pending action should be cleared
+    let shouldClear = false;
+
+    // If action was "removing" and container no longer exists, clear it
+    if (pending.action === "removing" && !containerIds.has(containerId)) {
+      shouldClear = true;
+    }
+
+    // Find the container if it still exists
+    const container = containers.find((c) => c.ID === containerId);
+    if (container) {
+      const stateText = (container.State || "").toLowerCase();
+      const statusText = (container.Status || "").toLowerCase();
+      const isRunning = stateText === "running" || statusText.startsWith("up");
+      const isStopped =
+        stateText === "exited" ||
+        stateText === "dead" ||
+        statusText.startsWith("exited") ||
+        statusText.startsWith("dead");
+
+      // Clear "starting" or "restarting" when container is running
+      if ((pending.action === "starting" || pending.action === "restarting") && isRunning) {
+        shouldClear = true;
+      }
+
+      // Clear "stopping" when container is stopped
+      if (pending.action === "stopping" && isStopped) {
+        shouldClear = true;
+      }
+    }
+
+    if (shouldClear) {
+      pendingActions.delete(key);
+    }
+  }
+}
+
+/**
  * Gets statistics about pending actions
  */
 export function getPendingActionsStats(): {
