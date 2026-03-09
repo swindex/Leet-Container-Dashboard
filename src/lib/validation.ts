@@ -239,8 +239,7 @@ export const themeSchema = Joi.string()
   });
 
 export const booleanSettingSchema = Joi.optional()
-  .valid("on", "off")
-  .default("off")
+  .default(false)
   .custom((value) => {
     // Convert "on" to true, undefined/anything else to false
     return value === "on";
