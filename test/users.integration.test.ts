@@ -23,7 +23,7 @@ async function loginAndGetDashboard(agent: any, username: string, password: stri
   expect(loginRes.status).toBe(302);
   expect(loginRes.headers.location).toBe("/");
 
-  const dashboardRes = await agent.get("/");
+  const dashboardRes = await agent.get("/dashboard");
   expect(dashboardRes.status).toBe(200);
   return dashboardRes;
 }
@@ -152,7 +152,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const adminAgent = request.agent(app);
@@ -174,7 +174,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -234,7 +234,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -274,7 +274,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);

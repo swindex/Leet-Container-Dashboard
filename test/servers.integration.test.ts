@@ -23,7 +23,7 @@ async function loginAndGetDashboard(agent: any, username: string, password: stri
   expect(loginRes.status).toBe(302);
   expect(loginRes.headers.location).toBe("/");
 
-  const dashboardRes = await agent.get("/");
+  const dashboardRes = await agent.get("/dashboard");
   expect(dashboardRes.status).toBe(200);
   return dashboardRes;
 }

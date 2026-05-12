@@ -23,7 +23,7 @@ async function loginAndGetDashboard(agent: any, username: string, password: stri
   expect(loginRes.status).toBe(302);
   expect(loginRes.headers.location).toBe("/");
 
-  const dashboardRes = await agent.get("/");
+  const dashboardRes = await agent.get("/dashboard");
   expect(dashboardRes.status).toBe(200);
   return dashboardRes;
 }
@@ -206,7 +206,7 @@ describe("dashboard settings page integration", () => {
     expect(savedSettings.showImageName).toBe(true);
     expect(savedSettings.showContainerHash).toBe(true);
 
-    const dashboardRes = await agent.get("/");
+    const dashboardRes = await agent.get("/dashboard");
     expect(dashboardRes.status).toBe(200);
     expect(dashboardRes.text).toContain("Custom Title");
     expect(dashboardRes.text).toContain("Custom slogan");
@@ -243,7 +243,7 @@ describe("dashboard settings page integration", () => {
 
     expect(saveRes.status).toBe(302);
 
-    const dashboardRes = await agent.get("/");
+    const dashboardRes = await agent.get("/dashboard");
     expect(dashboardRes.status).toBe(200);
     expect(dashboardRes.text).not.toContain("github.com/swindex/Leet-Container-Dashboard");
   });

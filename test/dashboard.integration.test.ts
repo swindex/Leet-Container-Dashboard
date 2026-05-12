@@ -10,6 +10,7 @@ import { ROLES, type Role } from "../src/lib/rbac.js";
 
 import { invalidateCache } from "../src/lib/dockerStatsCache.js";
 import { resolveDataPath } from "../src/lib/dataPaths.js";
+import { DEFAULT_DASHBOARD_SETTINGS } from "../src/lib/dashboardSettings.js";
 
 type TestUser = {
   id: string;
@@ -35,7 +36,7 @@ async function loginAndGetDashboard(agent: any, username: string, password: stri
   expect(loginRes.status).toBe(302);
   expect(loginRes.headers.location).toBe("/");
 
-  const dashboardRes = await agent.get("/");
+  const dashboardRes = await agent.get("/dashboard");
   expect(dashboardRes.status).toBe(200);
   return dashboardRes;
 }
@@ -152,6 +153,12 @@ describe("dashboard page integration - statically rendered content only", () => 
     invalidateCache();
 
     await fs.writeFile(
+      dashboardSettingsFilePath,
+      JSON.stringify(DEFAULT_DASHBOARD_SETTINGS, null, 2),
+      "utf-8"
+    );
+
+    await fs.writeFile(
       remoteServersFilePath,
       JSON.stringify(
         {
@@ -221,7 +228,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       restartContainerById: restartContainerMock,
       listContainerStats: listContainerStatsMock,
       getHostInfo: getHostInfoMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -240,7 +247,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const adminAgent = request.agent(app);
@@ -294,7 +301,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -341,7 +348,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       restartContainerById: restartContainerMock,
       listContainerStats: listContainerStatsMock,
       getHostInfo: getHostInfoMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -544,7 +551,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -625,7 +632,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -671,7 +678,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -742,7 +749,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -813,7 +820,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -855,12 +862,12 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
     const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
-    expect(dashboardRes.text).toContain("Restart Host");
+    expect(dashboardRes.text).toContain("Restart Server");
 
     const csrf = extractCsrfToken(dashboardRes.text);
     const hostRestartRes = await agent
@@ -912,7 +919,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -946,7 +953,7 @@ describe("container operations and dashboard settings visibility integration", (
     expect(savedSettings.showServerResources).toBe(false);
 
     // Verify the Vue template has conditional rendering based on these settings
-    const dashboardRes = await agent.get("/");
+    const dashboardRes = await agent.get("/dashboard");
     expect(dashboardRes.status).toBe(200);
     // Check that Vue template uses v-if="false" for server resources
     expect(dashboardRes.text).toContain('v-if="false"');
@@ -977,7 +984,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -1011,7 +1018,7 @@ describe("container operations and dashboard settings visibility integration", (
     expect(savedSettings.showContainerHash).toBe(false);
 
     // Verify Vue template has conditional rendering for these settings
-    const dashboardRes = await agent.get("/");
+    const dashboardRes = await agent.get("/dashboard");
     expect(dashboardRes.status).toBe(200);
     expect(dashboardRes.text).toContain(`v-if="false" class="text-muted block hash-text`);
     expect(dashboardRes.text).toContain(`v-if="false" class="text-muted block image-text`);
@@ -1072,7 +1079,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartRemoteServer: restartHostMock,
+      restartHostMachine: restartHostMock,
     });
 
     const agent = request.agent(app);
