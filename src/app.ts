@@ -154,7 +154,11 @@ export function createApp(partialDeps?: Partial<AppDeps>) {
         }
       }
     } catch (error) {
-      console.error("[Launchpad] Failed to sync all servers:", (error as Error).message);
+      if (error instanceof Error && error.message.includes("Unsupported state or unable to authenticate data")) {
+        console.error("Session decryption failed: COOKIE_SECRET likely changed since session was created");
+      } else {
+        console.error("[Launchpad] Failed to sync all servers:", (error as Error).message);
+      }
     }
   }
 

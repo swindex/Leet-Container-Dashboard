@@ -52,8 +52,12 @@ export interface DockerHostInfo {
   [key: string]: unknown;
 }
 
+export function shouldUseSshDocker(server?: DockerTargetServer): boolean {
+  return Boolean(server && !server.isLocal);
+}
+
 async function execDocker(args: string[], server?: DockerTargetServer, options?: { cwd?: string }): Promise<string> {
-  const useRemote = Boolean(server && !server.isLocal);
+  const useRemote = shouldUseSshDocker(server);
 
   try {
     const result = useRemote

@@ -203,7 +203,7 @@
                     </button>
                   </form>
 
-                  <form action="/containers/update" method="post" class="d-inline"
+                  <form v-if="canUpdateSelectedContainers" action="/containers/update" method="post" class="d-inline"
                         @submit="handleUpdate">
                     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                     <input v-for="name in Array.from(selectedContainers)" :key="name"
@@ -439,6 +439,15 @@
             const container = this.containers.find(c => c.Names === name);
             return container && this.isRunning(container);
           });
+        },
+        activeServer() {
+          return this.servers.find(server => server.id === this.activeServerId) || null;
+        },
+        isActiveServerLocal() {
+          return Boolean(this.activeServer && this.activeServer.isLocal);
+        },
+        canUpdateSelectedContainers() {
+          return <%= can.canUpdateContainers %> && !this.isActiveServerLocal;
         },
         areAllContainersDisabled() {
           // All containers are disabled if user lacks permission or all containers have pending actions

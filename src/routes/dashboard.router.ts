@@ -773,6 +773,12 @@ export function createDashboardRouter(deps: AppDeps) {
 
       try {
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        if (server.isLocal) {
+          setFlashSession(res, req, { error: "Container updates are only available for remote servers." });
+          res.redirect("/dashboard");
+          return;
+        }
+
         const containers = await deps.listContainers(server);
         const selection = buildComposeServiceUpdateSelection(containers, selectedContainerIds);
 

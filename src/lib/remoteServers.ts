@@ -166,19 +166,10 @@ function decryptRemoteServerPasswords(file: RemoteServersFile): RemoteServersFil
 function encryptRemoteServerPasswords(file: RemoteServersFile): RemoteServersFile {
   return {
     ...file,
-    servers: file.servers.map((server) => {
-      if (server.isLocal) {
-        return {
-          ...server,
-          password: "",
-        };
-      }
-
-      return {
-        ...server,
-        password: encryptRemoteServerPassword(server.password || ""),
-      };
-    }),
+    servers: file.servers.map((server) => ({
+      ...server,
+      password: encryptRemoteServerPassword(server.password || ""),
+    })),
   };
 }
 
@@ -315,7 +306,7 @@ export async function updateRemoteServer(
   target.name = validated.name;
   target.host = validated.host;
   target.username = validated.username;
-  if (typeof validated.password === "string" && validated.password.length > 0) {
+  if (typeof validated.password === "string") {
     target.password = validated.password;
   }
   target.enabled = validated.enabled;

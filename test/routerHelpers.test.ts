@@ -89,4 +89,5 @@ describe("router helpers - compose service updates", () => {
     expect(selection.skipped).toEqual(["standalone"]);
     expect(selection.missing).toEqual(["missing"]);
   });
+
 });

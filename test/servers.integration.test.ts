@@ -9,6 +9,7 @@ import { createApp } from "../src/app.js";
 import { ROLES } from "../src/lib/rbac.js";
 import { invalidateCache } from "../src/lib/dockerStatsCache.js";
 import { resolveDataPath } from "../src/lib/dataPaths.js";
+import { getRemoteServerById } from "../src/lib/remoteServers.js";
 
 function extractCsrfToken(html: string): string {
   const match = html.match(/name="_csrf"\s+value="([^"]+)"/);
@@ -275,6 +276,36 @@ describe("server management page integration", () => {
         }),
       ])
     );
+    expect(remoteServers.servers.find((server) => server.id === "local")?.password).toBe("");
+
+    const updateLocalSshRes = await agent
+      .post("/servers/local/update")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        name: "Edited Local SSH",
+        host: "192.168.1.50",
+        username: "admin",
+        password: "LocalSecret",
+        enabled: "on",
+      });
+
+    expect(updateLocalSshRes.status).toBe(302);
+    expect(updateLocalSshRes.headers.location).toBe("/servers");
+
+    remoteServers = await readRemoteServersFromFile(remoteServersFilePath);
+    const localServer = remoteServers.servers.find((server) => server.id === "local");
+    expect(localServer).toEqual(
+      expect.objectContaining({
+        id: "local",
+        name: "Edited Local SSH",
+        host: "192.168.1.50",
+        username: "admin",
+        isLocal: true,
+        enabled: true,
+      })
+    );
+    expect(localServer?.password).toMatch(/^enc:v1:/);
 
     const deleteLocalRes = await agent
       .post("/servers/local/delete")
@@ -313,5 +344,103 @@ describe("server management page integration", () => {
         }),
       ])
     );
+  });
+
+  it("keeps, clears, and replaces saved passwords from the edit server dialog", async () => {
+    const app = createApp({
+      listContainers: async () => [],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+
+    let serversPage = await agent.get("/servers");
+    expect(serversPage.status).toBe(200);
+    let csrf = extractCsrfToken(serversPage.text);
+
+    const createServerRes = await agent
+      .post("/servers")
+      .type("form")
+      .send({
+        _csrf: csrf,
+        name: "Password Remote",
+        host: "10.0.0.42",
+        username: "root",
+        password: "InitialSecret#123",
+        enabled: "on",
+      });
+
+    expect(createServerRes.status).toBe(302);
+    expect(createServerRes.headers.location).toBe("/servers");
+
+    let remoteServers = await readRemoteServersFromFile(remoteServersFilePath);
+    const remoteServer = remoteServers.servers.find((server) => server.name === "Password Remote");
+    expect(remoteServer?.id).toBeDefined();
+    const remoteServerId = remoteServer?.id ?? "";
+
+    serversPage = await agent.get("/servers");
+    expect(serversPage.status).toBe(200);
+    expect(serversPage.text).toContain(`id="edit-password-${remoteServerId}"`);
+    expect(serversPage.text).toContain('value="********"');
+    csrf = extractCsrfToken(serversPage.text);
+
+    const keepPasswordRes = await agent
+      .post(`/servers/${remoteServerId}/update`)
+      .type("form")
+      .send({
+        _csrf: csrf,
+        name: "Password Remote",
+        host: "10.0.0.42",
+        username: "root",
+        password: "********",
+        enabled: "on",
+      });
+
+    expect(keepPasswordRes.status).toBe(302);
+    expect(keepPasswordRes.headers.location).toBe("/servers");
+    expect((await getRemoteServerById(remoteServerId))?.password).toBe("InitialSecret#123");
+
+    const clearPasswordRes = await agent
+      .post(`/servers/${remoteServerId}/update`)
+      .type("form")
+      .send({
+        _csrf: csrf,
+        name: "Password Remote",
+        host: "10.0.0.42",
+        username: "root",
+        password: "",
+        enabled: "on",
+      });
+
+    expect(clearPasswordRes.status).toBe(302);
+    expect(clearPasswordRes.headers.location).toBe("/servers");
+    expect((await getRemoteServerById(remoteServerId))?.password).toBe("");
+
+    remoteServers = await readRemoteServersFromFile(remoteServersFilePath);
+    expect(remoteServers.servers.find((server) => server.id === remoteServerId)?.password).toBe("");
+
+    const replacePasswordRes = await agent
+      .post(`/servers/${remoteServerId}/update`)
+      .type("form")
+      .send({
+        _csrf: csrf,
+        name: "Password Remote",
+        host: "10.0.0.42",
+        username: "root",
+        password: "ReplacementSecret#456",
+        enabled: "on",
+      });
+
+    expect(replacePasswordRes.status).toBe(302);
+    expect(replacePasswordRes.headers.location).toBe("/servers");
+    expect((await getRemoteServerById(remoteServerId))?.password).toBe("ReplacementSecret#456");
+
+    const fileText = await fs.readFile(remoteServersFilePath, "utf-8");
+    expect(fileText).toContain("enc:v1:");
+    expect(fileText).not.toContain("ReplacementSecret#456");
   });
 });

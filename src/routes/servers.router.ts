@@ -22,6 +22,8 @@ import {
 } from "../lib/remoteServers.js";
 import { toBooleanFormValue } from "../lib/routerHelpers.js";
 
+const EDIT_PASSWORD_UNCHANGED_SENTINEL = "********";
+
 export function createServersRouter() {
   const router = Router();
 
@@ -139,7 +141,9 @@ export function createServersRouter() {
           name: typeof req.body?.name === "string" ? req.body.name : "",
           host: typeof req.body?.host === "string" ? req.body.host : "",
           username: typeof req.body?.username === "string" ? req.body.username : "",
-          password: typeof req.body?.password === "string" ? req.body.password : undefined,
+          password: typeof req.body?.password === "string" && req.body.password !== EDIT_PASSWORD_UNCHANGED_SENTINEL
+            ? req.body.password
+            : undefined,
           enabled: toBooleanFormValue(req.body?.enabled),
         });
 

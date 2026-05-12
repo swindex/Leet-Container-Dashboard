@@ -215,7 +215,7 @@
 
                 <div class="mb-3">
                   <label for="edit-password-<%= server.id %>" class="form-label">New Password (optional)</label>
-                  <input id="edit-password-<%= server.id %>" name="password" type="password" class="form-control hs-input" placeholder="Leave blank to keep current password" />
+                  <input id="edit-password-<%= server.id %>" name="password" type="password" class="form-control hs-input" value="<%= server.password ? '********' : '' %>" placeholder="Clear to remove saved password" />
                 </div>
 
                 <div class="form-check mb-0">

@@ -863,7 +863,7 @@ describe("container operations and dashboard settings visibility integration", (
     );
   });
 
-  it("allows admin to update selected Docker Compose services", async () => {
+  it("blocks Docker Compose updates for local servers", async () => {
     const app = createApp({
       listContainers: async () => [
         {
@@ -913,6 +913,7 @@ describe("container operations and dashboard settings visibility integration", (
     const agent = request.agent(app);
     const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
     expect(dashboardRes.text).toContain("Update containers: <strong>Yes</strong>");
+    expect(dashboardRes.text).toContain('v-if="canUpdateSelectedContainers"');
     const csrf = extractCsrfToken(dashboardRes.text);
 
     const updateRes = await agent
@@ -921,26 +922,103 @@ describe("container operations and dashboard settings visibility integration", (
       .send({ _csrf: csrf, containers: ["media-api-1", "media-worker-1"] });
 
     expect(updateRes.status).toBe(302);
+    expect(updateComposeServicesMock).not.toHaveBeenCalled();
+
+    const redirectedDashboard = await agent.get("/dashboard");
+    expect(redirectedDashboard.text).toContain("Container updates are only available for remote servers.");
+  });
+
+  it("allows admin to update selected Docker Compose services on remote servers", async () => {
+    await fs.writeFile(
+      remoteServersFilePath,
+      JSON.stringify(
+        {
+          defaultServerId: "remote-1",
+          servers: [
+            {
+              id: "local",
+              name: "Local Server",
+              host: "localhost",
+              username: "",
+              password: "",
+              enabled: true,
+              isLocal: true,
+            },
+            {
+              id: "remote-1",
+              name: "Remote Server",
+              host: "192.168.1.50",
+              username: "admin",
+              password: "LocalSecret",
+              enabled: true,
+              isLocal: false,
+            },
+          ],
+        },
+        null,
+        2
+      )
+    );
+
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "api111",
+          Names: "media-api-1",
+          Image: "repo/api:latest",
+          Status: "Up 5 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels:
+            "com.docker.compose.project=media,com.docker.compose.service=api,com.docker.compose.project.working_dir=/srv/media,com.docker.compose.project.config_files=/srv/media/docker-compose.yml",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      updateComposeServicesForContainers: updateComposeServicesMock,
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    expect(dashboardRes.text).toContain('v-if="canUpdateSelectedContainers"');
+    const csrf = extractCsrfToken(dashboardRes.text);
+
+    const updateRes = await agent
+      .post("/containers/update")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["media-api-1"] });
+
+    expect(updateRes.status).toBe(302);
     expect(updateComposeServicesMock).toHaveBeenCalledTimes(1);
     expect(updateComposeServicesMock).toHaveBeenCalledWith(
       [
         {
           projectName: "media",
           workingDir: "/srv/media",
-          configFiles: ["/srv/media/docker-compose.yml", "/srv/media/docker-compose.override.yml"],
-          services: ["api", "worker"],
+          configFiles: ["/srv/media/docker-compose.yml"],
+          services: ["api"],
         },
       ],
       expect.objectContaining({
-        id: "local",
-        isLocal: true,
+        id: "remote-1",
+        isLocal: false,
+        host: "192.168.1.50",
+        username: "admin",
+        password: "LocalSecret",
       })
     );
 
     const apiRes = await agent.get("/api/dashboard");
     expect(apiRes.status).toBe(200);
     expect(apiRes.body.data.pendingActions.api111.action).toBe("updating");
-    expect(apiRes.body.data.pendingActions.worker111.action).toBe("updating");
   });
 
   it("blocks non-admin users from updating containers", async () => {
@@ -990,6 +1068,37 @@ describe("container operations and dashboard settings visibility integration", (
   });
 
   it("skips standalone containers during update", async () => {
+    await fs.writeFile(
+      remoteServersFilePath,
+      JSON.stringify(
+        {
+          defaultServerId: "remote-1",
+          servers: [
+            {
+              id: "local",
+              name: "Local Server",
+              host: "localhost",
+              username: "",
+              password: "",
+              enabled: true,
+              isLocal: true,
+            },
+            {
+              id: "remote-1",
+              name: "Remote Server",
+              host: "192.168.1.50",
+              username: "admin",
+              password: "RemoteSecret",
+              enabled: true,
+              isLocal: false,
+            },
+          ],
+        },
+        null,
+        2
+      )
+    );
+
     const app = createApp({
       listContainers: async () => [
         {

@@ -197,8 +197,8 @@ export const updateServerSchema = Joi.object({
 export const updateLocalServerSchema = Joi.object({
   name: serverNameSchema,
   host: serverHostSchema,
-  username: Joi.string().allow("").optional(),
-  password: Joi.string().allow("").optional(),
+  username: Joi.alternatives().try(serverUsernameSchema, Joi.string().valid("")).optional(),
+  password: optionalServerPasswordSchema,
   enabled: serverEnabledSchema,
 });
 
