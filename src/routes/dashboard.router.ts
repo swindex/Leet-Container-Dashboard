@@ -273,7 +273,7 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_remove", {
           actor: req.user?.username,
@@ -285,7 +285,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: (error as Error).message || "Failed to remove container" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -318,7 +318,7 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_start", {
           actor: req.user?.username,
@@ -330,7 +330,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to start container" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -363,7 +363,7 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_stop", {
           actor: req.user?.username,
@@ -375,7 +375,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to stop container" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -408,7 +408,7 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_restart", {
           actor: req.user?.username,
@@ -420,7 +420,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to restart container" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -435,7 +435,7 @@ export function createDashboardRouter(deps: AppDeps) {
 
       if (!selectedContainerIds.length) {
         setFlashSession(res, req, { error: "No containers selected" });
-        res.redirect("/");
+        res.redirect("/dashboard");
         return;
       }
 
@@ -482,7 +482,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!running.length && !failed.length) {
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
@@ -496,7 +496,7 @@ export function createDashboardRouter(deps: AppDeps) {
           setFlashSession(res, req, {
             error: [runningMessage, failedMessage].filter(Boolean).join(". ") || "Failed to remove selected containers",
           });
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
@@ -509,7 +509,7 @@ export function createDashboardRouter(deps: AppDeps) {
         setFlashSession(res, req, {
           error: [runningMessage, failedMessage].filter(Boolean).join(". ") || "Some containers could not be removed",
         });
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_remove_bulk", {
           actor: req.user?.username,
@@ -521,7 +521,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to remove selected containers" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -536,7 +536,7 @@ export function createDashboardRouter(deps: AppDeps) {
 
       if (!selectedContainerIds.length) {
         setFlashSession(res, req, { error: "No containers selected" });
-        res.redirect("/");
+        res.redirect("/dashboard");
         return;
       }
 
@@ -572,20 +572,20 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!failed.length) {
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
         if (!started.length) {
           setFlashSession(res, req, { error: "Failed to start selected containers" });
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
         setFlashSession(res, req, {
           error: `Failed to start: ${failed.join(", ")}`,
         });
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_start_bulk", {
           actor: req.user?.username,
@@ -597,7 +597,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to start selected containers" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -612,7 +612,7 @@ export function createDashboardRouter(deps: AppDeps) {
 
       if (!selectedContainerIds.length) {
         setFlashSession(res, req, { error: "No containers selected" });
-        res.redirect("/");
+        res.redirect("/dashboard");
         return;
       }
 
@@ -648,20 +648,20 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!failed.length) {
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
         if (!stopped.length) {
           setFlashSession(res, req, { error: "Failed to stop selected containers" });
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
         setFlashSession(res, req, {
           error: `Failed to stop: ${failed.join(", ")}`,
         });
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_stop_bulk", {
           actor: req.user?.username,
@@ -673,7 +673,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to stop selected containers" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -688,7 +688,7 @@ export function createDashboardRouter(deps: AppDeps) {
 
       if (!selectedContainerIds.length) {
         setFlashSession(res, req, { error: "No containers selected" });
-        res.redirect("/");
+        res.redirect("/dashboard");
         return;
       }
 
@@ -724,20 +724,20 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         if (!failed.length) {
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
         if (!restarted.length) {
           setFlashSession(res, req, { error: "Failed to restart selected containers" });
-          res.redirect("/");
+          res.redirect("/dashboard");
           return;
         }
 
         setFlashSession(res, req, {
           error: `Failed to restart: ${failed.join(", ")}`,
         });
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT container_restart_bulk", {
           actor: req.user?.username,
@@ -749,7 +749,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to restart selected containers" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
@@ -773,7 +773,7 @@ export function createDashboardRouter(deps: AppDeps) {
           result: "success",
         });
 
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         console.warn("AUDIT host_restart", {
           actor: req.user?.username,
@@ -784,7 +784,7 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to restart host" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );

@@ -120,10 +120,10 @@ export function createServersRouter() {
           result: "success",
         });
 
-        res.redirect("/");
+        res.redirect("/dashboard");
       } catch (error) {
         setFlashSession(res, req, { error: (error as Error).message || "Failed to switch server" });
-        res.redirect("/");
+        res.redirect("/dashboard");
       }
     }
   );
