@@ -202,6 +202,17 @@
                       <i class="fa-solid fa-stop me-1"></i>Stop
                     </button>
                   </form>
+
+                  <form action="/containers/update" method="post" class="d-inline"
+                        @submit="handleUpdate">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <input v-for="name in Array.from(selectedContainers)" :key="name"
+                            type="hidden" name="containers" :value="name" />
+                    <button type="submit" class="btn btn-sm btn-hs-secondary"
+                            :disabled="!<%= can.canUpdateContainers %>">
+                      <i class="fa-solid fa-cloud-arrow-down me-1"></i>Update
+                    </button>
+                  </form>
                   
                   <form action="/containers/restart" method="post" class="d-inline"
                         @submit="handleRestart">
@@ -358,6 +369,7 @@
             <ul class="list-unstyled mb-0 small">
               <li class="mb-2"><i class="fa-solid fa-eye me-2"></i>View containers: <strong><%= can.canViewContainers ? 'Yes' : 'No' %></strong></li>
               <li class="mb-2"><i class="fa-solid fa-rotate-right me-2"></i>Restart containers: <strong><%= can.canRestartContainers ? 'Yes' : 'No' %></strong></li>
+              <li class="mb-2"><i class="fa-solid fa-cloud-arrow-down me-2"></i>Update containers: <strong><%= can.canUpdateContainers ? 'Yes' : 'No' %></strong></li>
               <li class="mb-2"><i class="fa-solid fa-power-off me-2"></i>Restart host: <strong><%= can.canRestartHost ? 'Yes' : 'No' %></strong></li>
               <li class="mb-2"><i class="fa-solid fa-right-left me-2"></i>Switch servers: <strong><%= can.canSwitchServers ? 'Yes' : 'No' %></strong></li>
               <li class="mb-2"><i class="fa-solid fa-users me-2"></i>Manage users: <strong><%= can.canManageUsers ? 'Yes' : 'No' %></strong></li>
@@ -630,6 +642,12 @@
         
         handleStop(event) {
           if (!confirm('Stop selected containers? This may interrupt service.')) {
+            event.preventDefault();
+          }
+        },
+
+        handleUpdate(event) {
+          if (!confirm('Update selected Docker Compose services? This pulls newer images and recreates supported selected services.')) {
             event.preventDefault();
           }
         },

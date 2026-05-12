@@ -2,6 +2,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { Client } from "ssh2";
 import { isDemoMode, logDemoAction } from "./demoMode.js";
+import type { ComposeServiceUpdatePlan } from "./routerHelpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -51,27 +52,31 @@ export interface DockerHostInfo {
   [key: string]: unknown;
 }
 
-async function execDocker(args: string[], server?: DockerTargetServer): Promise<string> {
+async function execDocker(args: string[], server?: DockerTargetServer, options?: { cwd?: string }): Promise<string> {
   const useRemote = Boolean(server && !server.isLocal);
 
   try {
     const result = useRemote
-      ? await execRemoteDocker(args, server!)
-      : await execFileAsync("docker", args);
+      ? await execRemoteDocker(args, server!, options)
+      : await execFileAsync("docker", args, options?.cwd ? { cwd: options.cwd } : undefined);
 
-    return result.stdout;
+    return result.stdout.toString();
   } catch (err) {
     const error = err as Error & { stderr?: string };
     throw new Error(error.stderr || error.message);
   }
 }
 
-async function execRemoteDocker(args: string[], server: DockerTargetServer): Promise<{ stdout: string; stderr: string }> {
+async function execRemoteDocker(
+  args: string[],
+  server: DockerTargetServer,
+  options?: { cwd?: string }
+): Promise<{ stdout: string; stderr: string }> {
   if (!server.host || !server.username) {
     throw new Error("Remote server host/username is missing");
   }
 
-  return execRemoteDockerViaSsh2(server, args);
+  return execRemoteDockerViaSsh2(server, args, options);
 }
 
 function shellEscape(value: string): string {
@@ -80,7 +85,8 @@ function shellEscape(value: string): string {
 
 async function execRemoteDockerViaSsh2(
   server: DockerTargetServer,
-  args: string[]
+  args: string[],
+  options?: { cwd?: string }
 ): Promise<{ stdout: string; stderr: string }> {
   const conn = new Client();
 
@@ -104,7 +110,10 @@ async function execRemoteDockerViaSsh2(
 
     conn
       .on("ready", () => {
-        const command = ["docker", ...args.map((arg) => shellEscape(arg))].join(" ");
+        const dockerCommand = ["docker", ...args.map((arg) => shellEscape(arg))].join(" ");
+        const command = options?.cwd
+          ? `cd ${shellEscape(options.cwd)} && ${dockerCommand}`
+          : dockerCommand;
 
         conn.exec(command, (err, stream) => {
           if (err) {
@@ -212,6 +221,52 @@ export async function removeContainer(containerIdOrName: string, server?: Docker
   }
   
   await execDocker(["rm", containerIdOrName], server);
+}
+
+function validateComposeServiceUpdatePlan(update: ComposeServiceUpdatePlan): void {
+  if (!update.projectName.trim() || !update.workingDir.trim() || !update.configFiles.length || !update.services.length) {
+    throw new Error("Invalid compose update plan.");
+  }
+
+  for (const service of update.services) {
+    if (!CONTAINER_ID_OR_NAME_PATTERN.test(service)) {
+      throw new Error("Invalid compose service identifier.");
+    }
+  }
+}
+
+export async function updateComposeServices(
+  updates: ComposeServiceUpdatePlan[],
+  server?: DockerTargetServer
+): Promise<void> {
+  if (!updates.length) {
+    return;
+  }
+
+  for (const update of updates) {
+    validateComposeServiceUpdatePlan(update);
+
+    if (isDemoMode()) {
+      logDemoAction("updateComposeServices", {
+        project: update.projectName,
+        workingDir: update.workingDir,
+        configFiles: update.configFiles,
+        services: update.services,
+        server: server?.host || "local",
+      });
+      continue;
+    }
+
+    const composeFileArgs = update.configFiles.flatMap((configFile) => ["-f", configFile]);
+    const baseArgs = ["compose", "-p", update.projectName, ...composeFileArgs];
+
+    await execDocker([...baseArgs, "pull", ...update.services], server, { cwd: update.workingDir });
+    await execDocker(
+      [...baseArgs, "up", "-d", "--no-deps", "--force-recreate", ...update.services],
+      server,
+      { cwd: update.workingDir }
+    );
+  }
 }
 
 

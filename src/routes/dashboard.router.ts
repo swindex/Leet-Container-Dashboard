@@ -17,8 +17,10 @@ import { getCachedDockerData } from "../lib/dockerStatsCache.js";
 import { setPendingAction, getPendingActionsForServer, clearCompletedPendingActions } from "../lib/pendingActions.js";
 import {
   buildContainerStatsLookup,
+  buildComposeServiceUpdateSelection,
   buildServerMetrics,
   containerMatchesIdentifier,
+  type ComposeServiceUpdatePlan,
   getSelectedContainerIdsFromBody,
   getServiceHost,
   groupContainersByComposeFile,
@@ -35,6 +37,7 @@ type AppDeps = {
   startContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   stopContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   restartContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
+  updateComposeServicesForContainers: (updates: ComposeServiceUpdatePlan[], server?: DockerTargetServer) => Promise<void>;
   restartHostMachine: (server?: DockerTargetServer) => Promise<void>;
 };
 
@@ -749,6 +752,80 @@ export function createDashboardRouter(deps: AppDeps) {
         });
 
         setFlashSession(res, req, { error: "Failed to restart selected containers" });
+        res.redirect("/dashboard");
+      }
+    }
+  );
+
+  router.post(
+    "/containers/update",
+    requireAuth,
+    ensureCsrf,
+    requirePermission(PERMISSIONS.CONTAINERS_UPDATE),
+    async (req, res) => {
+      const selectedContainerIds = getSelectedContainerIdsFromBody(req.body);
+
+      if (!selectedContainerIds.length) {
+        setFlashSession(res, req, { error: "No containers selected" });
+        res.redirect("/dashboard");
+        return;
+      }
+
+      try {
+        const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
+        const containers = await deps.listContainers(server);
+        const selection = buildComposeServiceUpdateSelection(containers, selectedContainerIds);
+
+        if (!selection.updates.length) {
+          setFlashSession(res, req, {
+            error: "Selected containers are not managed by Docker Compose and cannot be updated automatically.",
+          });
+          res.redirect("/dashboard");
+          return;
+        }
+
+        for (const container of selection.supportedContainers) {
+          setPendingAction(server.id, container.ID, "updating");
+        }
+
+        await deps.updateComposeServicesForContainers(selection.updates, server);
+
+        console.info("AUDIT container_update_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          updated: selection.supportedContainers.map((container) => container.Names),
+          skipped: selection.skipped,
+          missing: selection.missing,
+          server: server.id,
+          at: new Date().toISOString(),
+          result: (selection.skipped.length || selection.missing.length) ? "partial" : "success",
+        });
+
+        const skippedMessage = selection.skipped.length
+          ? `Skipped unsupported: ${selection.skipped.join(", ")}`
+          : "";
+        const missingMessage = selection.missing.length
+          ? `Not found: ${selection.missing.join(", ")}`
+          : "";
+        const partialMessage = [skippedMessage, missingMessage].filter(Boolean).join(". ");
+
+        if (partialMessage) {
+          setFlashSession(res, req, { error: partialMessage });
+        }
+
+        res.redirect("/dashboard");
+      } catch (error) {
+        console.warn("AUDIT container_update_bulk", {
+          actor: req.user?.username,
+          role: req.user?.role,
+          targets: selectedContainerIds,
+          at: new Date().toISOString(),
+          result: "error",
+          message: (error as Error).message,
+        });
+
+        setFlashSession(res, req, { error: "Failed to update selected containers" });
         res.redirect("/dashboard");
       }
     }

@@ -50,6 +50,20 @@ export type LaunchpadTile = {
   hidden: boolean;
 };
 
+export type ComposeServiceUpdatePlan = {
+  projectName: string;
+  workingDir: string;
+  configFiles: string[];
+  services: string[];
+};
+
+export type ComposeServiceUpdateSelection = {
+  updates: ComposeServiceUpdatePlan[];
+  supportedContainers: DockerContainer[];
+  skipped: string[];
+  missing: string[];
+};
+
 type ResolvedComposeGroup = {
   key: string;
   title: string;
@@ -275,12 +289,16 @@ export function containerMatchesIdentifier(container: DockerContainer, identifie
   );
 }
 
+function uniqueValues(values: string[]): string[] {
+  return values.filter((value, index, array) => value && array.indexOf(value) === index);
+}
+
 export function parseDockerLabels(labels: string): Record<string, string> {
   if (!labels) {
     return {};
   }
 
-  return labels.split(",").reduce<Record<string, string>>((acc, pair) => {
+  return labels.split(/,(?=[A-Za-z0-9_.-]+=)/).reduce<Record<string, string>>((acc, pair) => {
     const separatorIndex = pair.indexOf("=");
     if (separatorIndex <= 0) {
       return acc;
@@ -293,6 +311,73 @@ export function parseDockerLabels(labels: string): Record<string, string> {
     }
     return acc;
   }, {});
+}
+
+function splitComposeConfigFiles(value: string | undefined): string[] {
+  return uniqueValues(
+    (value || "")
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  );
+}
+
+export function buildComposeServiceUpdateSelection(
+  containers: DockerContainer[],
+  selectedContainerIds: string[]
+): ComposeServiceUpdateSelection {
+  const updateGroups = new Map<string, ComposeServiceUpdatePlan>();
+  const supportedById = new Map<string, DockerContainer>();
+  const skipped: string[] = [];
+  const missing: string[] = [];
+
+  for (const selectedContainerId of selectedContainerIds) {
+    const target = containers.find((container) => containerMatchesIdentifier(container, selectedContainerId));
+
+    if (!target) {
+      missing.push(selectedContainerId);
+      continue;
+    }
+
+    const labels = parseDockerLabels(target.Labels || "");
+    const projectName = (labels["com.docker.compose.project"] || "").trim();
+    const service = (labels["com.docker.compose.service"] || "").trim();
+    const workingDir = (labels["com.docker.compose.project.working_dir"] || "").trim();
+    const configFiles = splitComposeConfigFiles(labels["com.docker.compose.project.config_files"]);
+
+    if (!projectName || !service || !workingDir || !configFiles.length) {
+      skipped.push(target.Names || selectedContainerId);
+      continue;
+    }
+
+    const groupKey = `${projectName}::${workingDir}::${configFiles.join("|")}`;
+    const existing = updateGroups.get(groupKey);
+
+    if (existing) {
+      if (!existing.services.includes(service)) {
+        existing.services.push(service);
+      }
+    } else {
+      updateGroups.set(groupKey, {
+        projectName,
+        workingDir,
+        configFiles,
+        services: [service],
+      });
+    }
+
+    supportedById.set(target.ID, target);
+  }
+
+  return {
+    updates: Array.from(updateGroups.values()).map((update) => ({
+      ...update,
+      services: [...update.services].sort((a, b) => a.localeCompare(b)),
+    })),
+    supportedContainers: Array.from(supportedById.values()),
+    skipped: uniqueValues(skipped),
+    missing: uniqueValues(missing),
+  };
 }
 
 export function parseTruthyLabelValue(value: string | undefined): boolean {

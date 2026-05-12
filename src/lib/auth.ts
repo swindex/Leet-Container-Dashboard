@@ -469,6 +469,7 @@ export function requirePermission(permission: Permission): RequestHandler {
 export function getPermissionFlags(user?: AppSessionUser): {
   canViewContainers: boolean;
   canRestartContainers: boolean;
+  canUpdateContainers: boolean;
   canRestartHost: boolean;
   canManageUsers: boolean;
   canSwitchServers: boolean;
@@ -479,6 +480,7 @@ export function getPermissionFlags(user?: AppSessionUser): {
     return {
       canViewContainers: false,
       canRestartContainers: false,
+      canUpdateContainers: false,
       canRestartHost: false,
       canManageUsers: false,
       canSwitchServers: false,
@@ -490,6 +492,7 @@ export function getPermissionFlags(user?: AppSessionUser): {
   return {
     canViewContainers: hasPermission(user.role, PERMISSIONS.CONTAINERS_VIEW),
     canRestartContainers: hasPermission(user.role, PERMISSIONS.CONTAINERS_RESTART),
+    canUpdateContainers: hasPermission(user.role, PERMISSIONS.CONTAINERS_UPDATE),
     canRestartHost: hasPermission(user.role, PERMISSIONS.HOST_RESTART),
     canManageUsers: hasPermission(user.role, PERMISSIONS.USERS_MANAGE),
     canSwitchServers: hasPermission(user.role, PERMISSIONS.SERVERS_SWITCH),

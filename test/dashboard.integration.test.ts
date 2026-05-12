@@ -55,6 +55,7 @@ describe("dashboard page integration - statically rendered content only", () => 
   const removeContainerMock = vi.fn(async (_containerId: string) => undefined);
   const startContainerMock = vi.fn(async (_containerId: string) => undefined);
   const stopContainerMock = vi.fn(async (_containerId: string) => undefined);
+  const updateComposeServicesMock = vi.fn(async (_updates: unknown[]) => undefined);
   const listContainerStatsMock = vi.fn(async () => []);
   const getHostInfoMock = vi.fn(async () => ({ NCPU: 8, MemTotal: 16 * 1024 * 1024 * 1024 }));
   const restartHostMock = vi.fn(async () => undefined);
@@ -147,6 +148,7 @@ describe("dashboard page integration - statically rendered content only", () => 
     removeContainerMock.mockClear();
     startContainerMock.mockClear();
     stopContainerMock.mockClear();
+    updateComposeServicesMock.mockClear();
     listContainerStatsMock.mockClear();
     getHostInfoMock.mockClear();
     restartHostMock.mockClear();
@@ -247,6 +249,9 @@ describe("dashboard page integration - statically rendered content only", () => 
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
+      updateComposeServicesForContainers: updateComposeServicesMock,
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
       restartHostMachine: restartHostMock,
     });
 
@@ -378,6 +383,7 @@ describe("container operations and dashboard settings visibility integration", (
   const removeContainerMock = vi.fn(async (_containerId: string) => undefined);
   const startContainerMock = vi.fn(async (_containerId: string) => undefined);
   const stopContainerMock = vi.fn(async (_containerId: string) => undefined);
+  const updateComposeServicesMock = vi.fn(async (_updates: unknown[]) => undefined);
   const listContainerStatsMock = vi.fn(async () => []);
   const getHostInfoMock = vi.fn(async () => ({ NCPU: 8, MemTotal: 16 * 1024 * 1024 * 1024 }));
   const restartHostMock = vi.fn(async () => undefined);
@@ -476,6 +482,7 @@ describe("container operations and dashboard settings visibility integration", (
     removeContainerMock.mockClear();
     startContainerMock.mockClear();
     stopContainerMock.mockClear();
+    updateComposeServicesMock.mockClear();
     listContainerStatsMock.mockClear();
     getHostInfoMock.mockClear();
     restartHostMock.mockClear();
@@ -853,6 +860,174 @@ describe("container operations and dashboard settings visibility integration", (
         id: "local",
         isLocal: true,
       })
+    );
+  });
+
+  it("allows admin to update selected Docker Compose services", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "api111",
+          Names: "media-api-1",
+          Image: "repo/api:latest",
+          Status: "Up 5 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels:
+            "com.docker.compose.project=media,com.docker.compose.service=api,com.docker.compose.project.working_dir=/srv/media,com.docker.compose.project.config_files=/srv/media/docker-compose.yml,/srv/media/docker-compose.override.yml",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+        {
+          ID: "worker111",
+          Names: "media-worker-1",
+          Image: "repo/worker:latest",
+          Status: "Up 5 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels:
+            "com.docker.compose.project=media,com.docker.compose.service=worker,com.docker.compose.project.working_dir=/srv/media,com.docker.compose.project.config_files=/srv/media/docker-compose.yml,/srv/media/docker-compose.override.yml",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      startContainerById: startContainerMock,
+      stopContainerById: stopContainerMock,
+      restartContainerById: restartContainerMock,
+      updateComposeServicesForContainers: updateComposeServicesMock,
+      listContainerStats: listContainerStatsMock,
+      getHostInfo: getHostInfoMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    expect(dashboardRes.text).toContain("Update containers: <strong>Yes</strong>");
+    const csrf = extractCsrfToken(dashboardRes.text);
+
+    const updateRes = await agent
+      .post("/containers/update")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["media-api-1", "media-worker-1"] });
+
+    expect(updateRes.status).toBe(302);
+    expect(updateComposeServicesMock).toHaveBeenCalledTimes(1);
+    expect(updateComposeServicesMock).toHaveBeenCalledWith(
+      [
+        {
+          projectName: "media",
+          workingDir: "/srv/media",
+          configFiles: ["/srv/media/docker-compose.yml", "/srv/media/docker-compose.override.yml"],
+          services: ["api", "worker"],
+        },
+      ],
+      expect.objectContaining({
+        id: "local",
+        isLocal: true,
+      })
+    );
+
+    const apiRes = await agent.get("/api/dashboard");
+    expect(apiRes.status).toBe(200);
+    expect(apiRes.body.data.pendingActions.api111.action).toBe("updating");
+    expect(apiRes.body.data.pendingActions.worker111.action).toBe("updating");
+  });
+
+  it("blocks non-admin users from updating containers", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "api111",
+          Names: "media-api-1",
+          Image: "repo/api:latest",
+          Status: "Up 5 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels:
+            "com.docker.compose.project=media,com.docker.compose.service=api,com.docker.compose.project.working_dir=/srv/media,com.docker.compose.project.config_files=/srv/media/docker-compose.yml",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      updateComposeServicesForContainers: updateComposeServicesMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const viewerAgent = request.agent(app);
+    const viewerDashboard = await loginAndGetDashboard(viewerAgent, "viewer1", "ViewerPassword#2026");
+    const viewerCsrf = extractCsrfToken(viewerDashboard.text);
+    const viewerRes = await viewerAgent
+      .post("/containers/update")
+      .type("form")
+      .send({ _csrf: viewerCsrf, containers: ["media-api-1"] });
+    expect(viewerRes.status).toBe(403);
+
+    const operatorAgent = request.agent(app);
+    const operatorDashboard = await loginAndGetDashboard(operatorAgent, "operator1", "OperatorPassword#2026");
+    expect(operatorDashboard.text).toContain("Update containers: <strong>No</strong>");
+    const operatorCsrf = extractCsrfToken(operatorDashboard.text);
+    const operatorRes = await operatorAgent
+      .post("/containers/update")
+      .type("form")
+      .send({ _csrf: operatorCsrf, containers: ["media-api-1"] });
+    expect(operatorRes.status).toBe(403);
+    expect(updateComposeServicesMock).not.toHaveBeenCalled();
+  });
+
+  it("skips standalone containers during update", async () => {
+    const app = createApp({
+      listContainers: async () => [
+        {
+          ID: "standalone111",
+          Names: "standalone-api",
+          Image: "repo/api:latest",
+          Status: "Up 5 minutes",
+          Command: "",
+          CreatedAt: "",
+          Labels: "maintainer=local",
+          LocalVolumes: "",
+          Mounts: "",
+          Networks: "",
+          Ports: "",
+          RunningFor: "",
+          Size: "",
+          State: "running",
+        },
+      ],
+      updateComposeServicesForContainers: updateComposeServicesMock,
+      restartHostMachine: restartHostMock,
+    });
+
+    const agent = request.agent(app);
+    const dashboardRes = await loginAndGetDashboard(agent, "admin1", "AdminPassword#2026");
+    const csrf = extractCsrfToken(dashboardRes.text);
+
+    const updateRes = await agent
+      .post("/containers/update")
+      .type("form")
+      .send({ _csrf: csrf, containers: ["standalone-api"] });
+
+    expect(updateRes.status).toBe(302);
+    expect(updateComposeServicesMock).not.toHaveBeenCalled();
+
+    const redirectedDashboard = await agent.get("/dashboard");
+    expect(redirectedDashboard.text).toContain(
+      "Selected containers are not managed by Docker Compose and cannot be updated automatically."
     );
   });
 

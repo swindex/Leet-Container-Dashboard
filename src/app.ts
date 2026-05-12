@@ -12,6 +12,7 @@ import {
   startContainer,
   stopContainer,
   restartContainer,
+  updateComposeServices,
   type DockerContainer,
   type DockerContainerStat,
   type DockerHostInfo,
@@ -29,7 +30,7 @@ import { isDemoMode } from "./lib/demoMode.js";
 import { listRemoteServers } from "./lib/remoteServers.js";
 import { listLaunchpadItems, shouldSyncImmediately } from "./lib/launchpadItems.js";
 import { syncLaunchpadItemsForServer } from "./lib/launchpadSync.js";
-import { toSafeBackgroundStyle } from "./lib/routerHelpers.js";
+import { toSafeBackgroundStyle, type ComposeServiceUpdatePlan } from "./lib/routerHelpers.js";
 import { createAuthRouter } from "./routes/auth.router.js";
 import { createUsersRouter } from "./routes/users.router.js";
 import { createDashboardRouter } from "./routes/dashboard.router.js";
@@ -48,6 +49,7 @@ type AppDeps = {
   startContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   stopContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
   restartContainerById: (containerIdOrName: string, server?: DockerTargetServer) => Promise<void>;
+  updateComposeServicesForContainers: (updates: ComposeServiceUpdatePlan[], server?: DockerTargetServer) => Promise<void>;
   restartHostMachine: typeof restartHost;
 };
 
@@ -59,6 +61,7 @@ const defaultDeps: AppDeps = {
   startContainerById: startContainer,
   stopContainerById: stopContainer,
   restartContainerById: restartContainer,
+  updateComposeServicesForContainers: updateComposeServices,
   restartHostMachine: restartHost,
 };
 

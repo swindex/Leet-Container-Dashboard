@@ -1,6 +1,7 @@
 export const PERMISSIONS = {
   CONTAINERS_VIEW: "containers:view",
   CONTAINERS_RESTART: "containers:restart",
+  CONTAINERS_UPDATE: "containers:update",
   HOST_RESTART: "host:restart",
   USERS_MANAGE: "users:manage",
   SERVERS_SWITCH: "servers:switch",
@@ -24,6 +25,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   [ROLES.ADMIN]: [
     PERMISSIONS.CONTAINERS_VIEW,
     PERMISSIONS.CONTAINERS_RESTART,
+    PERMISSIONS.CONTAINERS_UPDATE,
     PERMISSIONS.HOST_RESTART,
     PERMISSIONS.USERS_MANAGE,
     PERMISSIONS.SERVERS_SWITCH,

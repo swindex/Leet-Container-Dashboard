@@ -4,7 +4,7 @@
  * while waiting for the cache to update with actual container states.
  */
 
-export type PendingActionType = "starting" | "stopping" | "restarting" | "removing";
+export type PendingActionType = "starting" | "stopping" | "restarting" | "removing" | "updating";
 
 type PendingAction = {
   action: PendingActionType;
@@ -159,7 +159,9 @@ export function clearCompletedPendingActions(
         statusText.startsWith("exited") ||
         statusText.startsWith("dead");
 
-      // Clear "starting" or "restarting" when container is running
+      // Clear "starting" or "restarting" when container is running.
+      // "updating" remains visible until TTL expiry because compose updates can recreate a service
+      // while the old or new container is already reporting as running.
       if ((pending.action === "starting" || pending.action === "restarting") && isRunning) {
         shouldClear = true;
       }
@@ -192,6 +194,7 @@ export function getPendingActionsStats(): {
       stopping: 0,
       restarting: 0,
       removing: 0,
+      updating: 0,
     } as Record<PendingActionType, number>,
   };
 
