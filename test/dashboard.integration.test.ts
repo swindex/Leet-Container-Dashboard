@@ -221,7 +221,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       restartContainerById: restartContainerMock,
       listContainerStats: listContainerStatsMock,
       getHostInfo: getHostInfoMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -240,7 +240,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const adminAgent = request.agent(app);
@@ -294,7 +294,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -341,7 +341,7 @@ describe("dashboard page integration - statically rendered content only", () => 
       restartContainerById: restartContainerMock,
       listContainerStats: listContainerStatsMock,
       getHostInfo: getHostInfoMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -544,7 +544,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -625,7 +625,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -671,7 +671,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -742,7 +742,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -813,7 +813,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -855,7 +855,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -912,7 +912,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -977,7 +977,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -1072,7 +1072,7 @@ describe("container operations and dashboard settings visibility integration", (
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);

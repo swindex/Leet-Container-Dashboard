@@ -245,7 +245,7 @@ export function createLaunchpadRouter() {
     requireAuth,
     requirePermission(PERMISSIONS.CONTAINERS_VIEW),
     ensureCsrf,
-    async (req, res) => {
+    async (_, res) => {
       try {
         const result = await cleanupRemovedItems();
         

@@ -64,8 +64,8 @@ async function refreshCacheInBackground(
       isRefreshing: false,
     });
   } catch (error) {
-    // On error, keep the stale cache but mark as not refreshing
-    existing.isRefreshing = false;
+    // On error, remove the stale cache so the next request surfaces the error
+    cache.delete(cacheKey);
     console.warn(`Background cache refresh failed for ${cacheKey}:`, (error as Error).message);
   }
 }

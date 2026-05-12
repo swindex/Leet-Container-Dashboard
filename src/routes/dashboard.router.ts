@@ -762,15 +762,27 @@ export function createDashboardRouter(deps: AppDeps) {
     async (req, res) => {
       try {
         const { server } = await resolveServerByIdOrDefault(getActiveServerSessionId(req));
-        await deps.restartHostMachine(server);
 
-        console.info("AUDIT host_restart", {
-          actor: req.user?.username,
-          role: req.user?.role,
-          server: server.id,
-          serverHost: server.host,
-          at: new Date().toISOString(),
-          result: "success",
+        // Fire-and-forget: don't wait for the restart to complete
+        deps.restartHostMachine(server).then(() => {
+          console.info("AUDIT host_restart", {
+            actor: req.user?.username,
+            role: req.user?.role,
+            server: server.id,
+            serverHost: server.host,
+            at: new Date().toISOString(),
+            result: "success",
+          });
+        }).catch((error) => {
+          console.warn("AUDIT host_restart", {
+            actor: req.user?.username,
+            role: req.user?.role,
+            server: server.id,
+            serverHost: server.host,
+            at: new Date().toISOString(),
+            result: "error",
+            message: (error as Error).message,
+          });
         });
 
         res.redirect("/dashboard");

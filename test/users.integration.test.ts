@@ -152,7 +152,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const adminAgent = request.agent(app);
@@ -174,7 +174,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -234,7 +234,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
@@ -274,7 +274,7 @@ describe("user management page integration", () => {
       startContainerById: startContainerMock,
       stopContainerById: stopContainerMock,
       restartContainerById: restartContainerMock,
-      restartHostMachine: restartHostMock,
+      restartRemoteServer: restartHostMock,
     });
 
     const agent = request.agent(app);
